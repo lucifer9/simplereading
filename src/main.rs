@@ -1,15 +1,14 @@
+use std::{collections::HashMap, convert::Infallible, net::SocketAddr};
 use std::env;
 use std::io::BufReader;
 use std::sync::Arc;
-use std::{collections::HashMap, convert::Infallible, net::SocketAddr};
 
 use anyhow::{Context, Result};
-use hyper::server::conn::AddrStream;
 use hyper::{
-    service::{make_service_fn, service_fn},
-    Body, Request, Response, Server,
+    Body,
+    Request, Response, Server, service::{make_service_fn, service_fn},
 };
-
+use hyper::server::conn::AddrStream;
 use readability::extractor::{get_dom, Product};
 use readability::markup5ever_arcdom::Node;
 use readability::markup5ever_arcdom::NodeData::Element;
@@ -148,10 +147,10 @@ async fn main() {
     }
 }
 
-fn get_next_link(node: Arc<Node>, re: &Regex, result: &mut String) {
-    if !result.is_empty() {
-        return;
-    }
+fn get_next_link(node: Arc<Node>, re: &Regex) -> String {
+    // if !result.is_empty() {
+    //     return;
+    // }
     let handle = node;
     for child in handle.children.borrow().iter() {
         let c = child.clone();
@@ -171,7 +170,7 @@ fn get_next_link(node: Arc<Node>, re: &Regex, result: &mut String) {
                             if first < last {
                                 let dest = &url[first..last];
                                 if re.is_match(dest) {
-                                    *result = url;
+                                    return url;
                                 }
                             }
                         }
@@ -179,16 +178,19 @@ fn get_next_link(node: Arc<Node>, re: &Regex, result: &mut String) {
                 }
             }
         }
-        get_next_link(c, re, result);
+        let next=get_next_link(c, re);
+        if !next.is_empty(){
+            return next;
+        }
     }
+    "".to_string()
 }
 
 fn get_content(content: &Vec<u8>, url: &Url, re: &Regex) -> Result<Product> {
     let mut bf = BufReader::new(content.as_slice());
     let dom = get_dom(&mut bf)?;
 
-    let mut next = String::new();
-    get_next_link(dom.document.clone(), re, &mut next);
+    let next = get_next_link(dom.document.clone(), re);
     let mut p = readability::extractor::extract(dom, url)?;
     p.content = next;
     Ok(p)

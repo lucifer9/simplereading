@@ -1,16 +1,17 @@
-use anyhow::{Context, Result};
-use encoding::label::encoding_from_whatwg_label;
-use encoding::DecoderTrap;
-use follow_redirects::ClientExt;
-use hyper::header::{HeaderMap, HeaderValue};
-use hyper::{Body, Client, Request, Response, Uri};
-use lazy_static::lazy_static;
 use std::io;
 use std::io::Read;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use crate::{utils, AppContext};
+use anyhow::{Context, Result};
+use encoding::DecoderTrap;
+use encoding::label::encoding_from_whatwg_label;
+use follow_redirects::ClientExt;
+use hyper::{Body, Client, Request, Response, Uri};
+use hyper::header::{HeaderMap, HeaderValue};
+use lazy_static::lazy_static;
+
+use crate::{AppContext, utils};
 
 async fn modify_response(
     context: Arc<AppContext>,
