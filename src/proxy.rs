@@ -1,12 +1,8 @@
-use std::io;
 use std::io::Read;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use encoding::DecoderTrap;
-use encoding::label::encoding_from_whatwg_label;
-use follow_redirects::ClientExt;
 use hyper::{Body, Client, Request, Response, Uri};
 use hyper::header::{HeaderMap, HeaderValue};
 use lazy_static::lazy_static;
@@ -15,12 +11,9 @@ use crate::{AppContext, utils};
 
 async fn modify_response(
     context: Arc<AppContext>,
-    forward_uri: &str,
+    // forward_uri: &str,
     resp: Response<Body>,
 ) -> Result<Response<Body>> {
-    if !context.booksite.eq_ignore_ascii_case(forward_uri) {
-        return Ok(resp);
-    }
     let mut res = Response::builder().status(resp.status());
     let new_headers = res.headers_mut().context("failed to get headers")?;
     let mut need_compress = true;
@@ -61,14 +54,24 @@ async fn modify_response(
                 }
                 body_string = body_string
                     .replace("www.google.com/search?ie=utf-8&", "duckduckgo.com/?ia=qa&");
-                // return Ok(res.body(Body::from(body_string)).unwrap());
                 body_bytes = body_string.as_bytes().to_vec();
             }
         }
         None => {}
     }
     if need_compress {
-        body_bytes = utils::compress_body(new_headers, &body_bytes)?;
+        body_bytes = utils::compress_body(&body_bytes)?;
+
+        new_headers.remove(hyper::header::CONTENT_ENCODING);
+        new_headers.remove(hyper::header::CONTENT_LENGTH);
+        new_headers.insert(
+            hyper::header::CONTENT_ENCODING,
+            HeaderValue::from_static("br"),
+        );
+        new_headers.insert(
+            hyper::header::CONTENT_LENGTH,
+            body_bytes.len().to_string().parse()?,
+        );
     }
     res.body(Body::from(body_bytes))
         .context("modify response error")
@@ -158,14 +161,7 @@ async fn create_proxied_response(mut response: Response<Body>) -> Result<Respons
             encoding = y.trim();
         }
         let e = &encoding.to_lowercase();
-        let e1 = encoding_from_whatwg_label(e).context("encoding error")?;
-        let s = e1.decode(&decoded[..], DecoderTrap::Strict).map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("decode error: {}", encoding),
-            )
-        })?;
-        decoded = s.into_bytes();
+        decoded = utils::to_utf8(&decoded, e)?;
     }
     Ok(Response::from_parts(parts, decoded.into()))
 }
@@ -192,6 +188,11 @@ fn create_proxied_request(
     *request.uri_mut() = forward_uri(forward_url, &request)?;
 
     let host_val = request.uri().host().unwrap().to_string();
+    request.headers_mut().remove(hyper::header::ACCEPT_ENCODING);
+    request.headers_mut().insert(
+        hyper::header::ACCEPT_ENCODING,
+        HeaderValue::from_static("gzip, deflate, br"),
+    );
     request
         .headers_mut()
         .insert(hyper::header::HOST, host_val.parse()?);
@@ -210,16 +211,7 @@ pub async fn call(
     let proxied_request = create_proxied_request(context.clone(), forward_uri, request)?;
     let https = hyper_tls::HttpsConnector::new();
     let client: Client<_, Body> = Client::builder().build(https);
-    let response = match context.booksite.eq_ignore_ascii_case(forward_uri) {
-        true => client.request(proxied_request).await?,
-        false => {
-            client
-                .follow_redirects_max(10)
-                .request(proxied_request)
-                .await?
-        }
-    };
+    let response = client.request(proxied_request).await?;
     let proxied_response = create_proxied_response(response).await?;
-    let p = modify_response(context.clone(), forward_uri, proxied_response).await;
-    p
+    modify_response(context.clone(), proxied_response).await
 }

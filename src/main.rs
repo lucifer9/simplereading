@@ -4,10 +4,7 @@ use std::io::BufReader;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use hyper::{
-    Body,
-    Request, Response, Server, service::{make_service_fn, service_fn},
-};
+use hyper::{Body, Request, Response, Server, service::{make_service_fn, service_fn}};
 use hyper::server::conn::AddrStream;
 use readability::extractor::{get_dom, Product};
 use readability::markup5ever_arcdom::Node;
@@ -42,14 +39,12 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
         if !dest.is_empty() {
             return if dest.contains("fkzww.net") {
                 Response::builder()
-                    .status(302)
+                    .status(hyper::http::StatusCode::FOUND)
                     .header(hyper::header::LOCATION, dest)
                     .body(Body::empty())
                     .context("redirect")
             } else {
                 let base = Url::parse(&dest)?;
-                let req1 = Request::get(&dest).body(Body::empty())?;
-                let resp = proxy::call(context.clone(), "", req1).await?;
                 let mut re: Regex = Regex::new(r"xxx")?;
                 if dest.contains('/') && dest.contains('.') {
                     let first = dest.rfind('/').unwrap() + 1;
@@ -59,19 +54,16 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                         re = Regex::new(format!("{}_\\d+", base).as_str())?;
                     }
                 }
-                let (mut parts, body) = resp.into_parts();
-                let body_bytes = hyper::body::to_bytes(body).await?;
-                let mut p0 = get_content(&body_bytes.to_vec(), &Url::parse(&dest)?, &re)?;
+                let body = fetch_novel(&dest)?;
+                let mut p0 = get_content(&body[..], &Url::parse(&dest)?, &re)?;
                 let mut next = p0.content;
                 while !next.is_empty() {
                     let next_url = match next.contains("http") {
                         true => Url::parse(&next)?,
                         false => base.join(&next)?,
                     };
-                    let r = Request::get(next_url.as_str()).body(Body::empty())?;
-                    let resp_orig = proxy::call(context.clone(), "", r).await?;
-                    let b = hyper::body::to_bytes(resp_orig).await?;
-                    let p1 = get_content(&b.to_vec(), &next_url, &re)?;
+                    let resp_orig = fetch_novel(next_url.as_str())?;
+                    let p1 = get_content(&resp_orig[..], &next_url, &re)?;
                     p0.text += &p1.text;
                     next = p1.content;
                 }
@@ -87,8 +79,14 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                 html.push_str(r#"px;}</style>"#);
                 html.push_str(&p0.text);
                 html.push_str(r#"</body></html>"#);
-                let new_body = utils::compress_body(&mut parts.headers, &html.into_bytes())?;
-                let new_resp = Response::from_parts(parts, Body::from(new_body));
+
+                let new_body = utils::compress_body(&html.into_bytes())?;
+                let new_resp = Response::builder()
+                    .status(hyper::http::StatusCode::OK)
+                    .header(hyper::header::CONTENT_ENCODING, "br")
+                    .header(hyper::header::CONTENT_LENGTH, new_body.len().to_string())
+                    .body(Body::from(new_body))?;
+                // let new_resp = Response::from_parts(parts, Body::from(new_body));
                 Ok(new_resp)
             };
         }
@@ -148,9 +146,6 @@ async fn main() {
 }
 
 fn get_next_link(node: Arc<Node>, re: &Regex) -> String {
-    // if !result.is_empty() {
-    //     return;
-    // }
     let handle = node;
     for child in handle.children.borrow().iter() {
         let c = child.clone();
@@ -178,20 +173,36 @@ fn get_next_link(node: Arc<Node>, re: &Regex) -> String {
                 }
             }
         }
-        let next=get_next_link(c, re);
-        if !next.is_empty(){
+        let next = get_next_link(c, re);
+        if !next.is_empty() {
             return next;
         }
     }
     "".to_string()
 }
 
-fn get_content(content: &Vec<u8>, url: &Url, re: &Regex) -> Result<Product> {
-    let mut bf = BufReader::new(content.as_slice());
+fn get_content(content: &[u8], url: &Url, re: &Regex) -> Result<Product> {
+    let mut bf = BufReader::new(content);
     let dom = get_dom(&mut bf)?;
 
     let next = get_next_link(dom.document.clone(), re);
     let mut p = readability::extractor::extract(dom, url)?;
     p.content = next;
     Ok(p)
+}
+
+fn fetch_novel(url: &str) -> Result<Vec<u8>> {
+    let html = sysreq::get(url)?;
+    let mut len = html.len();
+    if len > 1024 {
+        len = 1024;
+    }
+    let tmpu8 = &html[0..len];
+    let tmp = String::from_utf8_lossy(tmpu8).to_string().to_lowercase();
+    let mut charset = "gb18030";
+    if tmp.contains("charset=") && (tmp.contains("utf-8") || tmp.contains("utf8")) {
+        charset = "utf-8";
+    }
+
+    utils::to_utf8(&html, charset)
 }
