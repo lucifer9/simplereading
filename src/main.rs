@@ -83,6 +83,7 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                 let new_body = utils::compress_body(&html.into_bytes())?;
                 let new_resp = Response::builder()
                     .status(hyper::http::StatusCode::OK)
+                    .header(hyper::header::CONTENT_TYPE, "text/html")
                     .header(hyper::header::CONTENT_ENCODING, "br")
                     .header(hyper::header::CONTENT_LENGTH, new_body.len().to_string())
                     .body(Body::from(new_body))?;
