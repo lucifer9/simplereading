@@ -1,11 +1,14 @@
-use std::{collections::HashMap, convert::Infallible, net::SocketAddr};
 use std::env;
 use std::io::BufReader;
 use std::sync::Arc;
+use std::{collections::HashMap, convert::Infallible, net::SocketAddr};
 
 use anyhow::{Context, Result};
-use hyper::{Body, Request, Response, Server, service::{make_service_fn, service_fn}};
 use hyper::server::conn::AddrStream;
+use hyper::{
+    service::{make_service_fn, service_fn},
+    Body, Request, Response, Server,
+};
 use readability::extractor::{get_dom, Product};
 use readability::markup5ever_arcdom::Node;
 use readability::markup5ever_arcdom::NodeData::Element;
@@ -198,8 +201,9 @@ fn fetch_novel(url: &str) -> Result<Vec<u8>> {
     if len > 1024 {
         len = 1024;
     }
-    let tmpu8 = &html[0..len];
-    let tmp = String::from_utf8_lossy(tmpu8).to_string().to_lowercase();
+    let tmp = String::from_utf8_lossy(&html[0..len])
+        .to_string()
+        .to_lowercase();
     let mut charset = "gb18030";
     if tmp.contains("charset=") && (tmp.contains("utf-8") || tmp.contains("utf8")) {
         charset = "utf-8";
