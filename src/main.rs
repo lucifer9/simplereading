@@ -57,7 +57,7 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                         re = Regex::new(format!("{}_\\d+", base).as_str())?;
                     }
                 }
-                let body = fetch_novel(&dest)?;
+                let body = fetch_novel(&dest).await?;
                 let mut p0 = get_content(&body[..], &Url::parse(&dest)?, &re)?;
                 let mut next = p0.content;
                 while !next.is_empty() {
@@ -65,7 +65,7 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                         true => Url::parse(&next)?,
                         false => base.join(&next)?,
                     };
-                    let resp_orig = fetch_novel(next_url.as_str())?;
+                    let resp_orig = fetch_novel(next_url.as_str()).await?;
                     let p1 = get_content(&resp_orig[..], &next_url, &re)?;
                     p0.text += &p1.text;
                     next = p1.content;
@@ -195,8 +195,13 @@ fn get_content(content: &[u8], url: &Url, re: &Regex) -> Result<Product> {
     Ok(p)
 }
 
-fn fetch_novel(url: &str) -> Result<Vec<u8>> {
-    let html = sysreq::get(url)?;
+async fn fetch_novel(url: &str) -> Result<Vec<u8>> {
+    let output = tokio::process::Command::new("curl")
+        .arg("-gL")
+        .arg(url)
+        .output()
+        .await?;
+    let html = output.stdout;
     let mut len = html.len();
     if len > 1024 {
         len = 1024;
