@@ -54,7 +54,7 @@ async fn modify_response(
                     crate::Mode::NIGHT => {
                         body_string = body_string.replace(
                             "<body>",
-                            "<body><style>body{background-color: black; color: white;}</style>",
+                            "<body><style>body{background-color: black; color: white;} a{color: #338DFF;}</style>",
                         )
                     }
                     crate::Mode::DAY => (),
