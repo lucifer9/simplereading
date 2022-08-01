@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::{collections::HashMap, convert::Infallible, net::SocketAddr};
 
 use anyhow::{Context, Result};
+
 use hyper::server::conn::AddrStream;
 use hyper::{
     service::{make_service_fn, service_fn},
@@ -25,6 +26,11 @@ pub struct AppContext {
     host: String,
     port: String,
     scheme: String,
+}
+
+pub enum Mode {
+    NIGHT,
+    DAY,
 }
 
 async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response<Body>> {
@@ -79,7 +85,12 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                 html.push_str(&p0.title);
                 html.push_str(r#"</h3><style> p{text-indent:2em; font-size:"#);
                 html.push_str(context.fontsize.to_string().as_str());
-                html.push_str(r#"px;}</style>"#);
+                let mode = utils::get_mode(39.904211, 116.407395, 52.0);
+                match mode {
+                    Mode::DAY => html.push_str(r#"px;}</style>"#),
+                    Mode::NIGHT => html
+                        .push_str(r#"px;} body{background-color: black; color: white;}</style>"#),
+                }
                 html.push_str(&p0.text);
                 html.push_str(r#"</body></html>"#);
 

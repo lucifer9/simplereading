@@ -3,11 +3,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use hyper::{Body, Client, Request, Response, Uri};
 use hyper::header::{HeaderMap, HeaderValue};
+use hyper::{Body, Client, Request, Response, Uri};
 use lazy_static::lazy_static;
 
-use crate::{AppContext, utils};
+use crate::{utils, AppContext};
 
 async fn modify_response(
     context: Arc<AppContext>,
@@ -46,11 +46,24 @@ async fn modify_response(
         Some(v) => {
             if v.to_str()?.contains("text") {
                 let mut body_string = String::from_utf8(body_bytes).unwrap();
-                body_string = body_string.replace("adsbygoogle", "xxxxxxx");
+                body_string = body_string.replace("google-analytics.com", "127.0.0.1");
+                // body_string = body_string.replace("adsbygoogle", "xxxxxxx");
                 body_string = body_string.replace("<li class=\"hla\">", "<li class=\"\">");
+                let mode = utils::get_mode(39.904211, 116.407395, 52.0);
+                match mode {
+                    crate::Mode::NIGHT => {
+                        body_string = body_string.replace(
+                            "<body>",
+                            "<body><style>body{background-color: black; color: white;}</style>",
+                        )
+                    }
+                    crate::Mode::DAY => (),
+                }
                 if body_string.contains("slist sec") {
-                    body_string = body_string
-                        .replace("<body>", "<style>ul.list.sec {display: none;}</style>");
+                    body_string = body_string.replace(
+                        "<body>",
+                        "<body><style>ul.list.sec {display: none;}</style>",
+                    );
                 }
                 body_string = body_string
                     .replace("www.google.com/search?ie=utf-8&", "duckduckgo.com/?ia=qa&");

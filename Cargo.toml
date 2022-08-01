@@ -1,6 +1,6 @@
 [package]
 name = "simplereading"
-version = "0.9.2"
+version = "0.9.5"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -20,3 +20,5 @@ readability = { git = "https://github.com/lucifer9/readability", default-feature
 encoding = "0.2"
 hyper-tls = "0.5"
 anyhow = "1.0"
+chrono = {version = "0.4", default-features = false, features=["clock"]}
+libm = "0.2"
