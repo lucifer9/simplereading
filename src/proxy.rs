@@ -63,9 +63,13 @@ async fn modify_response(
                     if (e === "dark") {
                         document.body.style.color = "white";
                         document.body.style.backgroundColor = "black";
-                        var elements = document.querySelectorAll('a');
-                        [].slice.call(elements).forEach(function(elem) {
+                        var all = document.querySelectorAll('a');
+                        var top = document.querySelectorAll('a.top');
+                        [].slice.call(all).forEach(function(elem) {
                             elem.style.color = '#338dff';
+                        });
+                        [].slice.call(top).forEach(function(elem) {
+                            elem.style.color = '#f00';
                         });
                         var elements = document.getElementsByClassName('grey');
                         [].slice.call(elements).forEach(function(elem) {
@@ -74,9 +78,13 @@ async fn modify_response(
                     } else {
                         document.body.style.color = "black";
                         document.body.style.backgroundColor = "white";
-                        var elements = document.querySelectorAll('a');
-                        [].slice.call(elements).forEach(function(elem) {
+                        var all = document.querySelectorAll('a');
+                        var top = document.querySelectorAll('a.top');
+                        [].slice.call(all).forEach(function(elem) {
                             elem.style.color = '#03f';
+                        });
+                        [].slice.call(top).forEach(function(elem) {
+                            elem.style.color = '#f00';
                         });
                         var elements = document.getElementsByClassName('grey');
                         [].slice.call(elements).forEach(function(elem) {
@@ -87,7 +95,7 @@ async fn modify_response(
                 if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                     chg("dark");
                 } else {
-                    chg("bright");
+                    chg("light");
                 }
                 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
                     const newColorScheme = event.matches ? "dark" : "light";
