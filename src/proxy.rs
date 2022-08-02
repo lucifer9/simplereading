@@ -49,16 +49,6 @@ async fn modify_response(
                 body_string = body_string.replace("google-analytics.com", "127.0.0.1");
                 // body_string = body_string.replace("adsbygoogle", "xxxxxxx");
                 body_string = body_string.replace("<li class=\"hla\">", "<li class=\"\">");
-                let mode = utils::get_mode(39.904211, 116.407395, 52.0);
-                match mode {
-                    crate::Mode::NIGHT => {
-                        body_string = body_string.replace(
-                            "<body>",
-                            "<body><style>body{background-color: black; color: white;} a{color: #338DFF;}</style>",
-                        )
-                    }
-                    crate::Mode::DAY => (),
-                }
                 if body_string.contains("slist sec") {
                     body_string = body_string.replace(
                         "<body>",
@@ -67,6 +57,49 @@ async fn modify_response(
                 }
                 body_string = body_string
                     .replace("www.google.com/search?ie=utf-8&", "duckduckgo.com/?ia=qa&");
+                let script = r#"
+                <script type="text/javascript">
+                function chg(e) {
+                    if (e === "dark") {
+                        document.body.style.color = "white";
+                        document.body.style.backgroundColor = "black";
+                        var elements = document.querySelectorAll('a');
+                        [].slice.call(elements).forEach(function(elem) {
+                            elem.style.color = '#338dff';
+                        });
+                        var elements = document.getElementsByClassName('grey');
+                        [].slice.call(elements).forEach(function(elem) {
+                            elem.style.color = '#a9a196';
+                        });
+                    } else {
+                        document.body.style.color = "black";
+                        document.body.style.backgroundColor = "white";
+                        var elements = document.querySelectorAll('a');
+                        [].slice.call(elements).forEach(function(elem) {
+                            elem.style.color = '#03f';
+                        });
+                        var elements = document.getElementsByClassName('grey');
+                        [].slice.call(elements).forEach(function(elem) {
+                            elem.style.color = '#646464';
+                        });
+                    }
+                }
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    chg("dark");
+                } else {
+                    chg("bright");
+                }
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+                    const newColorScheme = event.matches ? "dark" : "light";
+                    chg(newColorScheme);
+                });
+                </script>
+                </body>
+                "#;
+                // body_string = body_string.replace("color=\"#646464\"", "color=\"#a9a196\"");
+                body_string =
+                    body_string.replace("><font color=\"#646464\">", " class=\"grey\"><font>");
+                body_string = body_string.replace("</body>", script);
                 body_bytes = body_string.as_bytes().to_vec();
             }
         }

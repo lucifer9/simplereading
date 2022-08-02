@@ -28,11 +28,6 @@ pub struct AppContext {
     scheme: String,
 }
 
-pub enum Mode {
-    NIGHT,
-    DAY,
-}
-
 async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response<Body>> {
     let params: HashMap<String, String> = req
         .uri()
@@ -85,14 +80,38 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                 html.push_str(&p0.title);
                 html.push_str(r#"</h3><style> p{text-indent:2em; font-size:"#);
                 html.push_str(context.fontsize.to_string().as_str());
-                let mode = utils::get_mode(39.904211, 116.407395, 52.0);
-                match mode {
-                    Mode::DAY => html.push_str(r#"px;}</style>"#),
-                    Mode::NIGHT => html
-                        .push_str(r#"px;} body{background-color: black; color: white;}</style>"#),
-                }
+                html.push_str(r#"px;}</style>"#);
+                // let mode = utils::get_mode(39.904211, 116.407395, 52.0);
+                // match mode {
+                //     Mode::DAY => html.push_str(r#"px;}</style>"#),
+                //     Mode::NIGHT => html
+                //         .push_str(r#"px;} body{background-color: black; color: white;}</style>"#),
+                // }
                 html.push_str(&p0.text);
-                html.push_str(r#"</body></html>"#);
+                let script = r#"
+                <script type="text/javascript">
+                function chg(e) {
+                    if (e === "dark") {
+                        document.body.style.color = "white";
+                        document.body.style.backgroundColor = "black";
+                    } else {
+                        document.body.style.color = "black";
+                        document.body.style.backgroundColor = "white";
+                    }
+                }
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    chg("dark");
+                } else {
+                    chg("bright");
+                }
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+                    const newColorScheme = event.matches ? "dark" : "light";
+                    chg(newColorScheme);
+                });
+            </script>
+                </body></html>
+                "#;
+                html.push_str(script);
 
                 let new_body = utils::compress_body(&html.into_bytes())?;
                 let new_resp = Response::builder()
