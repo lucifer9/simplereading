@@ -24,6 +24,7 @@ async fn modify_response(
         }
         if key == hyper::header::LOCATION {
             need_compress = false;
+            text = text.replace("http://www.wcxsw.org/", "https://m.wcxsw.org/");
             if text.starts_with("http") && !text.contains(&context.host) {
                 if !context.port.is_empty() {
                     text = format!(
@@ -46,8 +47,8 @@ async fn modify_response(
         Some(v) => {
             if v.to_str()?.contains("text") {
                 let mut body_string = String::from_utf8(body_bytes).unwrap();
-                body_string = body_string.replace("google-analytics.com", "127.0.0.1");
-                // body_string = body_string.replace("adsbygoogle", "xxxxxxx");
+                body_string = body_string.replace("google-analytics.com", "0.0.0.0");
+                body_string = body_string.replace("adsbygoogle", "xxxxxxx");
                 body_string = body_string.replace("<li class=\"hla\">", "<li class=\"\">");
                 if body_string.contains("slist sec") {
                     body_string = body_string.replace(

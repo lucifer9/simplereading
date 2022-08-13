@@ -1,5 +1,6 @@
 use std::env;
 use std::io::BufReader;
+
 use std::sync::Arc;
 use std::{collections::HashMap, convert::Infallible, net::SocketAddr};
 
@@ -48,29 +49,7 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                     .body(Body::empty())
                     .context("redirect")
             } else {
-                let base = Url::parse(&dest)?;
-                let mut re: Regex = Regex::new(r"xxx")?;
-                if dest.contains('/') && dest.contains('.') {
-                    let first = dest.rfind('/').unwrap() + 1;
-                    let last = dest.rfind('.').unwrap();
-                    if first < last {
-                        let base = &dest[first..last];
-                        re = Regex::new(format!("{}_\\d+", base).as_str())?;
-                    }
-                }
-                let body = fetch_novel(&dest).await?;
-                let mut p0 = get_content(&body[..], &Url::parse(&dest)?, &re)?;
-                let mut next = p0.content;
-                while !next.is_empty() {
-                    let next_url = match next.contains("http") {
-                        true => Url::parse(&next)?,
-                        false => base.join(&next)?,
-                    };
-                    let resp_orig = fetch_novel(next_url.as_str()).await?;
-                    let p1 = get_content(&resp_orig[..], &next_url, &re)?;
-                    p0.text += &p1.text;
-                    next = p1.content;
-                }
+                let p0 = get_all_txt(dest).await?;
                 //toWrite := `<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>` +title + `</title></head><body><h3>` + title + `</h3><style> p{text-indent:2em; font-size:` + strconv.Itoa(FONTSIZE) +";}</style>\n" + content + `</body></html>`
                 let mut html = String::from(
                     r#"<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>"#,
@@ -87,6 +66,10 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                 //     Mode::NIGHT => html
                 //         .push_str(r#"px;} body{background-color: black; color: white;}</style>"#),
                 // }
+
+                html.push_str(
+                    r#"<button id="listen" type="button" onclick="listen()">Listen</button>"#,
+                );
                 html.push_str(&p0.text);
                 let script = r#"
                 <script type="text/javascript">
@@ -108,6 +91,22 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                     const newColorScheme = event.matches ? "dark" : "light";
                     chg(newColorScheme);
                 });
+                function listen() {
+                    let full = window.location.href;
+                    let dest = full.replace("dest=", "listen=");
+                    btn = document.getElementById("listen");
+                    console.log(dest);
+
+                    try {
+                        myAudioElement=new Audio(dest);
+                        myAudioElement.addEventListener("canplaythrough", (event) => {
+                            /* the audio is now playable; play it if permissions allow */
+                            myAudioElement.play();
+                          });
+                    } catch (e) {
+                      alert('web audio api not supported');
+                    }
+                    } 
             </script>
                 </body></html>
                 "#;
@@ -124,11 +123,68 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                 Ok(new_resp)
             };
         }
+    } else if params.contains_key("listen") {
+        let listen = params["listen"].clone();
+        let mut all = get_all_txt(listen).await?.text;
+        all = all.replace("<p>", "");
+        all = all.replace("</p>", "\r\n");
+        let lines = all.lines().collect::<Vec<&str>>();
+        // let total_str = lines.filter(|&x| !x.is_empty()).collect::<Vec<&str>>();
+        let n = 2;
+        let size = lines.len() / n + 1;
+        dbg!(lines.len());
+        let chunks = lines.chunks(size);
+        let start = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN"> <voice name="zh-CN-XiaoxiaoNeural"> <prosody rate="+50.00%">"#;
+        let end = r#"</prosody> </voice> </speak>"#;
+        let mut tmp1 = String::new();
+        for chunk in chunks {
+            let mut ssml = String::from(start);
+            ssml.push_str(chunk.join("\r\n").as_str());
+            ssml.push_str(end);
+            tmp1 += &ssml;
+        }
+        let mut tmp = String::new();
+        tmp.push_str(start);
+        tmp.push_str(r#"餐具费290，一瓶苏打水415，宽牛排6735，烤花椰菜1040。阿根廷官方汇率形同虚设，真正主宰经济的是非官方汇率，按当天的汇率算，约等于197元人民币。
+        当然，小费还是要给一点的，不计算在账单内。
+        "#);
+        tmp.push_str(end);
+        // let token = utils::get_token().await?;
+        dbg!(&tmp);
+        let mp3 = utils::get_mp3(&utils::get_token().await?, &tmp).await?;
+        return Ok(Response::new(Body::from(mp3)));
     } else {
         let resp = proxy::call(context.clone(), &context.booksite, req).await;
         return resp;
     }
     Ok(Response::new(Body::from("Hello World")))
+}
+
+async fn get_all_txt(dest: String) -> Result<Product, anyhow::Error> {
+    let base = Url::parse(&dest)?;
+    let mut re: Regex = Regex::new(r"xxx")?;
+    if dest.contains('/') && dest.contains('.') {
+        let first = dest.rfind('/').unwrap() + 1;
+        let last = dest.rfind('.').unwrap();
+        if first < last {
+            let base = &dest[first..last];
+            re = Regex::new(format!("{}_\\d+", base).as_str())?;
+        }
+    }
+    let body = fetch_novel(&dest).await?;
+    let mut p0 = get_content(&body[..], &Url::parse(&dest)?, &re)?;
+    let mut next = p0.content.clone();
+    while !next.is_empty() {
+        let next_url = match next.contains("http") {
+            true => Url::parse(&next)?,
+            false => base.join(&next)?,
+        };
+        let resp_orig = fetch_novel(next_url.as_str()).await?;
+        let p1 = get_content(&resp_orig[..], &next_url, &re)?;
+        p0.text += &p1.text;
+        next = p1.content;
+    }
+    Ok(p0)
 }
 
 #[tokio::main]
