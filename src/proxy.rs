@@ -25,6 +25,7 @@ async fn modify_response(
         if key == hyper::header::LOCATION {
             need_compress = false;
             text = text.replace("http://www.wcxsw.org/", "https://m.wcxsw.org/");
+            text = text.replace("http://www.wucuoxs.com", "https://m.wucuoxs.com");
             if text.starts_with("http") && !text.contains(&context.host) {
                 if !context.port.is_empty() {
                     text = format!(
