@@ -43,6 +43,8 @@ pub fn to_utf8(orig: &[u8], charset: &str) -> Result<Vec<u8>> {
 pub async fn get_token() -> Result<String> {
     let output = tokio::process::Command::new("curl")
         .arg("-gL")
+        .arg("--compressed")
+        .arg("-A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36'")
         .arg(ENDPOINT1)
         .output()
         .await?;
@@ -57,30 +59,31 @@ pub async fn get_mp3(token: &str, ssml: &str) -> Result<Vec<u8>> {
     let mut url = String::from(ENDPOINT2);
     url.push_str(format!("?Authorization={}", token).as_str());
     url.push_str(format!("&X-ConnectionId={}", &uuid).as_str());
-    dbg!(&url);
     let (ws, _) = connect_async(Url::parse(&url)?)
         .await
         .expect("ws connect error");
     let (mut writer, mut reader) = ws.split();
-    // let (mut socket, _response) = connect(Url::parse(&url)?).expect("Can't connect");
     let message_1=format!("Path : speech.config\r\nX-RequestId: {}\r\nX-Timestamp: {}\r\nContent-Type: application/json\r\n\r\n{}",&uuid,Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ"),PAYLOAD_1);
-    dbg!(&message_1);
+    // dbg!(&message_1);
     writer.send(message_1.into()).await?;
     let message_2=format!("Path : synthesis.context\r\nX-RequestId: {}\r\nX-Timestamp: {}\r\nContent-Type: application/json\r\n\r\n{}",&uuid,Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ"),PAYLOAD_2);
-    dbg!(&message_2);
+    // dbg!(&message_2);
     writer.send(message_2.into()).await?;
     let message_3=format!("Path: ssml\r\nX-RequestId: {}\r\nX-Timestamp: {}\r\nContent-Type: application/ssml+xml\r\n\r\n{}",&uuid,Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ"),ssml);
-    dbg!(&message_3);
+    // dbg!(&message_3);
     writer.send(message_3.into()).await?;
     let mut mp3: Vec<u8> = Vec::new();
     let pat = "Path:audio\r\n".as_bytes().to_vec();
     loop {
         let d = reader.next().await.context("reading ws")?;
+        if d.is_err() {
+            break;
+        }
         let data = d?;
         if data.is_text() {
             if data.into_text()?.contains("Path:turn.end") {
-                let mut file = std::fs::File::create("a.mp3")?;
-                file.write_all(mp3.as_slice())?;
+                // let mut file = std::fs::File::create("a.mp3")?;
+                // file.write_all(mp3.as_slice())?;
                 break;
             }
         } else if data.is_binary() {

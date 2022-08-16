@@ -15,6 +15,7 @@ use readability::extractor::{get_dom, Product};
 use readability::markup5ever_arcdom::Node;
 use readability::markup5ever_arcdom::NodeData::Element;
 use regex::Regex;
+use unicode_segmentation::UnicodeSegmentation;
 use url::Url;
 
 mod proxy;
@@ -68,7 +69,7 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                 // }
 
                 html.push_str(
-                    r#"<button id="listen" type="button" onclick="listen()">Listen</button>"#,
+                    r#"<div id="div1" style="text-align:center"><button id="listen" type="button" onclick="listen()">Listen</button></div>"#
                 );
                 html.push_str(&p0.text);
                 let script = r#"
@@ -94,19 +95,23 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                 function listen() {
                     let full = window.location.href;
                     let dest = full.replace("dest=", "listen=");
-                    btn = document.getElementById("listen");
+                    let btn = document.getElementById("listen");
+                    let div = document.getElementById("div1");
                     console.log(dest);
 
                     try {
-                        myAudioElement=new Audio(dest);
-                        myAudioElement.addEventListener("canplaythrough", (event) => {
+                        au =new Audio(dest);
+                        au.addEventListener("canplaythrough", (event) => {
                             /* the audio is now playable; play it if permissions allow */
-                            myAudioElement.play();
+                            au.play();
                           });
+                        au.controls = true;
+                        div.insertBefore(au, btn);
+                        btn.style.display = "none";
                     } catch (e) {
-                      alert('web audio api not supported');
-                    }
-                    } 
+                      alert(e.stack);
+                }
+            } 
             </script>
                 </body></html>
                 "#;
@@ -127,31 +132,27 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
         let listen = params["listen"].clone();
         let mut all = get_all_txt(listen).await?.text;
         all = all.replace("<p>", "");
-        all = all.replace("</p>", "\r\n");
-        let lines = all.lines().collect::<Vec<&str>>();
+        all = all.replace("</p>", "");
+        // let lines = all.lines().collect::<Vec<&str>>();
         // let total_str = lines.filter(|&x| !x.is_empty()).collect::<Vec<&str>>();
-        let n = 2;
-        let size = lines.len() / n + 1;
-        dbg!(lines.len());
-        let chunks = lines.chunks(size);
+        let size = 2500;
+        // let n = lines.len() / size + 1;
+        let all_chars = all.as_str().graphemes(true).collect::<Vec<&str>>();
+        // dbg!(all_chars.len());
+        // let chunks = all.len() / size + 1;
         let start = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN"> <voice name="zh-CN-XiaoxiaoNeural"> <prosody rate="+50.00%">"#;
         let end = r#"</prosody> </voice> </speak>"#;
-        let mut tmp1 = String::new();
-        for chunk in chunks {
+        // let mut tmp1 = String::new();
+        let mut mp3: Vec<u8> = Vec::new();
+        for chunk in all_chars.chunks(size) {
             let mut ssml = String::from(start);
-            ssml.push_str(chunk.join("\r\n").as_str());
+            ssml.push_str(&chunk.join(""));
             ssml.push_str(end);
-            tmp1 += &ssml;
+            // tmp1 += &ssml;
+            let t = utils::get_token().await?;
+            // dbg!(&t);
+            mp3.extend_from_slice(&utils::get_mp3(&t, &ssml).await?);
         }
-        let mut tmp = String::new();
-        tmp.push_str(start);
-        tmp.push_str(r#"餐具费290，一瓶苏打水415，宽牛排6735，烤花椰菜1040。阿根廷官方汇率形同虚设，真正主宰经济的是非官方汇率，按当天的汇率算，约等于197元人民币。
-        当然，小费还是要给一点的，不计算在账单内。
-        "#);
-        tmp.push_str(end);
-        // let token = utils::get_token().await?;
-        dbg!(&tmp);
-        let mp3 = utils::get_mp3(&utils::get_token().await?, &tmp).await?;
         return Ok(Response::new(Body::from(mp3)));
     } else {
         let resp = proxy::call(context.clone(), &context.booksite, req).await;
@@ -284,6 +285,8 @@ fn get_content(content: &[u8], url: &Url, re: &Regex) -> Result<Product> {
 async fn fetch_novel(url: &str) -> Result<Vec<u8>> {
     let output = tokio::process::Command::new("curl")
         .arg("-gL")
+        .arg("--compressed")
+        .arg("-A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36'")
         .arg(url)
         .output()
         .await?;
