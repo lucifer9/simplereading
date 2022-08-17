@@ -61,15 +61,9 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                 html.push_str(r#"</h3><style> p{text-indent:2em; font-size:"#);
                 html.push_str(context.fontsize.to_string().as_str());
                 html.push_str(r#"px;}</style>"#);
-                // let mode = utils::get_mode(39.904211, 116.407395, 52.0);
-                // match mode {
-                //     Mode::DAY => html.push_str(r#"px;}</style>"#),
-                //     Mode::NIGHT => html
-                //         .push_str(r#"px;} body{background-color: black; color: white;}</style>"#),
-                // }
 
                 html.push_str(
-                    r#"<div id="div1" style="text-align:center"><button id="listen" type="button" onclick="listen()">Listen</button></div>"#
+                    r#"<div id="div1" style="text-align:center"><audio id="au"><source src = "data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"></audio><button id="listen" type="button" onclick="listen()">Listen</button></div>"#
                 );
                 html.push_str(&p0.text);
                 let script = r#"
@@ -97,10 +91,10 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                     let dest = full.replace("dest=", "listen=");
                     let btn = document.getElementById("listen");
                     let div = document.getElementById("div1");
-                    console.log(dest);
-
+                    let au = document.getElementById("au");
+                    au.autoplay = true;
                     try {
-                        au =new Audio(dest);
+                        au.src=dest;
                         au.addEventListener("canplaythrough", (event) => {
                             /* the audio is now playable; play it if permissions allow */
                             au.play();
@@ -124,7 +118,6 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                     .header(hyper::header::CONTENT_ENCODING, "br")
                     .header(hyper::header::CONTENT_LENGTH, new_body.len().to_string())
                     .body(Body::from(new_body))?;
-                // let new_resp = Response::from_parts(parts, Body::from(new_body));
                 Ok(new_resp)
             };
         }
@@ -142,18 +135,18 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
         // let chunks = all.len() / size + 1;
         let start = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN"> <voice name="zh-CN-XiaoxiaoNeural"> <prosody rate="+50.00%">"#;
         let end = r#"</prosody> </voice> </speak>"#;
-        // let mut tmp1 = String::new();
         let mut mp3: Vec<u8> = Vec::new();
         for chunk in all_chars.chunks(size) {
             let mut ssml = String::from(start);
             ssml.push_str(&chunk.join(""));
             ssml.push_str(end);
-            // tmp1 += &ssml;
             let t = utils::get_token().await?;
-            // dbg!(&t);
             mp3.extend_from_slice(&utils::get_mp3(&t, &ssml).await?);
         }
-        return Ok(Response::new(Body::from(mp3)));
+        let mut resp = Response::new(Body::from(mp3));
+        resp.headers_mut()
+            .append(hyper::header::CONTENT_TYPE, "audio/mpeg".parse()?);
+        return Ok(resp);
     } else {
         let resp = proxy::call(context.clone(), &context.booksite, req).await;
         return resp;
