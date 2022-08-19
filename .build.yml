@@ -1,0 +1,36 @@
+image: debian/stable
+packages:
+  - libssl-dev
+  - pkg-config
+sources:
+  - https://git.sr.ht/~jamdu/simplereading
+tasks:
+  - setup: |
+      curl https://sh.rustup.rs -sSf | sh -s -- -y
+      mkdir -p .cargo
+      cd .cargo
+      cat << EOF > config.toml
+      [profile.release]
+      lto = true
+      strip = true
+      codegen-units = 1
+      [target.x86_64-unknown-linux-gnu]
+      rustflags = [
+        "-C", "target-cpu=skylake",
+      ]
+      EOF
+  - build: |
+      source .cargo/env
+      cd simplereading
+      cargo build --release
+  - deploy: |
+      cd simplereading
+      ssh -p37201 -o StrictHostKeyChecking=no lucifer@hk.icean.xyz systemctl --user stop book.service
+      scp -P37201 -o StrictHostKeyChecking=no target/release/simplereading lucifer@hk.icean.xyz:work/simplereading
+      ssh -p37201 -o StrictHostKeyChecking=no lucifer@hk.icean.xyz systemctl --user start book.service
+secrets:
+  - ef1af065-cd76-4582-9f1d-89b7d2587792
+triggers:
+  - action: email
+    condition: always
+    to: jdu@icean.xyz
