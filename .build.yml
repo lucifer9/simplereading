@@ -23,7 +23,7 @@ tasks:
       EOF
   - build: |
       cd upx
-      make -j0
+      make -j2
       cd ..
       source .cargo/env
       cd simplereading
