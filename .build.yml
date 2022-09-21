@@ -31,7 +31,7 @@ tasks:
       ../upx/build/release/upx --best --lzma target/release/simplereading
   - deploy: |
       ssh -p37201 -o StrictHostKeyChecking=no lucifer@hk.icean.xyz systemctl --user stop book.service
-      scp -P37201 -o StrictHostKeyChecking=no target/release/simplereading lucifer@hk.icean.xyz:work/simplereading
+      scp -P37201 -o StrictHostKeyChecking=no simplereading/target/release/simplereading lucifer@hk.icean.xyz:work/simplereading
       ssh -p37201 -o StrictHostKeyChecking=no lucifer@hk.icean.xyz systemctl --user start book.service
 secrets:
   - ef1af065-cd76-4582-9f1d-89b7d2587792
