@@ -16,7 +16,7 @@ use uuid::Uuid;
 const ENDPOINT1: &str =
     "https://azure.microsoft.com/en-gb/services/cognitive-services/text-to-speech/";
 const ENDPOINT2: &str = "wss://eastus.tts.speech.microsoft.com/cognitiveservices/websocket/v1";
-const PAYLOAD_1: &str = r#"{"context":{"system":{"name":"SpeechSDK","version":"1.12.1-rc.1","build":"JavaScript","lang":"JavaScript","os":{"platform":"Browser/Linux x86_64","name":"Mozilla/5.0 (X11; Linux x86_64; rv:78.0) Gecko/20100101 Firefox/78.0","version":"5.0 (X11)"}}}}"#;
+const PAYLOAD_1: &str = r#"{"context":{"system":{"name":"SpeechSDK","version":"1.12.1-rc.1","build":"JavaScript","lang":"JavaScript","os":{"platform":"Browser/Linux x86_64","name":"Mozilla/5.0 (X11; Linux x86_64; rv:105.0) Gecko/20100101 Firefox/105.0","version":"5.0 (X11)"}}}}"#;
 const PAYLOAD_2: &str = r#"{"synthesis":{"audio":{"metadataOptions":{"sentenceBoundaryEnabled":false,"wordBoundaryEnabled":false},"outputFormat":"audio-16khz-32kbitrate-mono-mp3"}}}"#;
 
 pub fn compress_body(/*new_headers: &mut HeaderMap, */ body_bytes: &Vec<u8>,) -> Result<Vec<u8>> {
@@ -44,7 +44,7 @@ pub async fn get_token() -> Result<String> {
     let output = tokio::process::Command::new("curl")
         .arg("-gL")
         .arg("--compressed")
-        .arg("-A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36'")
+        .arg("-A 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:105.0) Gecko/20100101 Firefox/105.0'")
         .arg(ENDPOINT1)
         .output()
         .await?;

@@ -105,7 +105,7 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                     } catch (e) {
                       alert(e.stack);
                 }
-            } 
+            }
             </script>
                 </body></html>
                 "#;
@@ -193,7 +193,7 @@ async fn main() {
     let context = AppContext {
         booksite: "https://m.booklink.me".to_string(),
         fontsize: env::var("FONTSIZE").unwrap_or_else(|_| "17".to_string()),
-        ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36".to_string(),
+        ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36".to_string(),
         host: env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
         port: match debug {
             true => localport.clone(),
