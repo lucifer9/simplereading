@@ -18,7 +18,7 @@ tasks:
       codegen-units = 1
       [target.x86_64-unknown-linux-gnu]
       rustflags = [
-        "-C", "target-cpu=skylake",
+        "-C", "target-cpu=broadwell",
       ]
       EOF
   - build: |
