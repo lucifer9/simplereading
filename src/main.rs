@@ -140,8 +140,8 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
             let mut ssml = String::from(start);
             ssml.push_str(&chunk.join(""));
             ssml.push_str(end);
-            let t = utils::get_token().await?;
-            mp3.extend_from_slice(&utils::get_mp3(&t, &ssml).await?);
+            // let t = utils::get_token().await?;
+            mp3.extend_from_slice(&utils::get_mp3(&ssml).await?);
         }
         let mut resp = Response::new(Body::from(mp3));
         resp.headers_mut()

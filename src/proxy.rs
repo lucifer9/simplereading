@@ -44,22 +44,21 @@ async fn modify_response(
         .await
         .context("body to bytes error")?
         .to_vec();
-    match new_headers.get(hyper::header::CONTENT_TYPE) {
-        Some(v) => {
-            if v.to_str()?.contains("text") {
-                let mut body_string = String::from_utf8(body_bytes).unwrap();
-                body_string = body_string.replace("google-analytics.com", "0.0.0.0");
-                body_string = body_string.replace("adsbygoogle", "xxxxxxx");
-                body_string = body_string.replace("<li class=\"hla\">", "<li class=\"\">");
-                if body_string.contains("slist sec") {
-                    body_string = body_string.replace(
-                        "<body>",
-                        "<body><style>ul.list.sec {display: none;}</style>",
-                    );
-                }
-                body_string = body_string
-                    .replace("www.google.com/search?ie=utf-8&", "duckduckgo.com/?ia=qa&");
-                let script = r#"
+    if let Some(v) = new_headers.get(hyper::header::CONTENT_TYPE) {
+        if v.to_str()?.contains("text") {
+            let mut body_string = String::from_utf8(body_bytes)?;
+            body_string = body_string.replace("google-analytics.com", "0.0.0.0");
+            body_string = body_string.replace("adsbygoogle", "xxxxxxx");
+            body_string = body_string.replace("<li class=\"hla\">", "<li class=\"\">");
+            if body_string.contains("slist sec") {
+                body_string = body_string.replace(
+                    "<body>",
+                    "<body><style>ul.list.sec {display: none;}</style>",
+                );
+            }
+            body_string =
+                body_string.replace("www.google.com/search?ie=utf-8&", "duckduckgo.com/?ia=qa&");
+            let script = r#"
                 <script type="text/javascript">
                 function chg(e) {
                     if (e === "dark") {
@@ -106,14 +105,12 @@ async fn modify_response(
                 </script>
                 </body>
                 "#;
-                // body_string = body_string.replace("color=\"#646464\"", "color=\"#a9a196\"");
-                body_string =
-                    body_string.replace("><font color=\"#646464\">", " class=\"grey\"><font>");
-                body_string = body_string.replace("</body>", script);
-                body_bytes = body_string.as_bytes().to_vec();
-            }
+            // body_string = body_string.replace("color=\"#646464\"", "color=\"#a9a196\"");
+            body_string =
+                body_string.replace("><font color=\"#646464\">", " class=\"grey\"><font>");
+            body_string = body_string.replace("</body>", script);
+            body_bytes = body_string.as_bytes().to_vec();
         }
-        None => {}
     }
     if need_compress {
         body_bytes = utils::compress_body(&body_bytes)?;
