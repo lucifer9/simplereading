@@ -169,12 +169,18 @@ async fn create_proxied_response(mut response: Response<Body>) -> Result<Respons
     let (mut parts, body) = response.into_parts();
     let body_bytes = hyper::body::to_bytes(body).await?;
     let headers = parts.headers.clone();
-    let decoder = match headers.get(hyper::header::CONTENT_ENCODING) {
-        Some(value) => {
-            parts.headers.remove(hyper::header::CONTENT_ENCODING);
-            value.to_str()?
-        }
-        None => "",
+    // let decoder = match headers.get(hyper::header::CONTENT_ENCODING) {
+    //     Some(value) => {
+    //         parts.headers.remove(hyper::header::CONTENT_ENCODING);
+    //         value.to_str()?
+    //     }
+    //     None => "",
+    // };
+    let decoder = if let Some(value) = headers.get(hyper::header::CONTENT_ENCODING) {
+        parts.headers.remove(hyper::header::CONTENT_ENCODING);
+        value.to_str()?
+    } else {
+        ""
     };
     let mut decoded = match decoder {
         "gzip" => {
@@ -221,11 +227,15 @@ async fn create_proxied_response(mut response: Response<Body>) -> Result<Respons
 
 fn forward_uri(forward_url: &str, req: &Request<Body>) -> Result<Uri> {
     if !forward_url.is_empty() {
-        let new_uri = match req.uri().query() {
-            Some(query) => format!("{}{}?{}", forward_url, req.uri().path(), query),
-            None => format!("{}{}", forward_url, req.uri().path()),
+        // let new_uri = match req.uri().query() {
+        //     Some(query) => format!("{}{}?{}", forward_url, req.uri().path(), query),
+        //     None => format!("{}{}", forward_url, req.uri().path()),
+        // };
+        let new_uri = if let Some(query) = req.uri().query() {
+            format!("{}{}?{}", forward_url, req.uri().path(), query)
+        } else {
+            format!("{}{}", forward_url, req.uri().path())
         };
-
         Ok(Uri::from_str(new_uri.as_str())?)
     } else {
         Ok(req.uri().clone())

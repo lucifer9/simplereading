@@ -169,9 +169,10 @@ async fn get_all_txt(dest: String) -> Result<Product, anyhow::Error> {
     let mut p0 = get_content(&body[..], &Url::parse(&dest)?, &re)?;
     let mut next = p0.content.clone();
     while !next.is_empty() {
-        let next_url = match next.contains("http") {
-            true => Url::parse(&next)?,
-            false => base.join(&next)?,
+        let next_url = if next.contains("http") {
+            Url::parse(&next)?
+        } else {
+            base.join(&next)?
         };
         let resp_orig = fetch_novel(next_url.as_str()).await?;
         let p1 = get_content(&resp_orig[..], &next_url, &re)?;
@@ -195,9 +196,10 @@ async fn main() {
         fontsize: env::var("FONTSIZE").unwrap_or_else(|_| "17".to_string()),
         ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36".to_string(),
         host: env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
-        port: match debug {
-            true => localport.clone(),
-            false => env::var("PORT").unwrap_or_else(|_| "".to_string()),
+        port: if debug {
+            localport.clone()
+        }else{
+            env::var("PORT").unwrap_or_else(|_| "".to_string())
         },
         scheme: env::var("SCHEME").unwrap_or_else(|_| "http".to_string()),
     };
