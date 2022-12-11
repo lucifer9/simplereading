@@ -36,7 +36,7 @@ jobs:
           components: rustfmt
       - uses: actions-rs/cargo@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          command: fmt
           args: --all -- --check
 
   clippy:
