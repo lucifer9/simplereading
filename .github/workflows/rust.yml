@@ -68,7 +68,7 @@ jobs:
     steps:
       - id: prepare
         run: |
-          apt update && apt -y full-upgrade && apt -y install wget curl build-essential libssl-dev git openssh-client
+          apt update && apt -y full-upgrade && apt -y install pkg-config wget curl build-essential libssl-dev git openssh-client
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
