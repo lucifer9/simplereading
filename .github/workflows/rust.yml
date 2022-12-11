@@ -66,6 +66,9 @@ jobs:
         CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
         RUSTFLAGS: "-C target-cpu=broadwell"
     steps:
+      - id: prepare
+        run: |
+          apt update && apt -y full-upgrade && apt -y install wget curl build-essential libssl-dev git openssh-client
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
