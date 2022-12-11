@@ -1,0 +1,104 @@
+name: Rust
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          
+  fmt:
+    name: format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all -- --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: clippy
+      - uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: -- -D warnings
+
+  build:
+    name: build
+    needs: [test, fmt, clippy]
+    runs-on: ubuntu-latest
+    env:
+      CARGO_PROFILE_RELEASE_LTO: true
+      CARGO_PROFILE_RELEASE_STRIP: true
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
+      RUSTFLAGS: "-C target-cpu=broadwell"
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      - id: upx
+        uses: pozetroninc/github-action-get-latest-release@master
+        with:
+          owner: upx
+          repo: upx
+          excludes: prerelease, draft
+      - id: upxv
+        uses: frabert/replace-string-action@v2
+        with:
+          string: ${{ steps.upx.outputs.release }}
+          pattern: 'v'
+          replace-with: ''
+      - id: compress
+        run: |
+          wget -O upx.tar.xz https://github.com/upx/upx/releases/download/${{ steps.upx.outputs.release }}/upx-${{ steps.upxv.outputs.replaced }}-amd64_linux.tar.xz
+          tar --strip-components=1 --wildcards  -x */upx -f upx.tar.xz -C .
+          ./upx --best --lzma target/release/simplereading
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.DEPLOY_KEY }}
+          name: id_ed25519
+          known_hosts: ${{ secrets.KNOWN_HOSTS }}
+          if_key_exists: replace
+      - name: deploy
+        run: |
+          ssh -p37201 lucifer@free.icean.xyz systemctl --user stop book.service
+          scp -P37201 target/release/simplereading lucifer@free.icean.xyz:work/simplereading
+          ssh -p37201 lucifer@free.icean.xyz systemctl --user start book.service
