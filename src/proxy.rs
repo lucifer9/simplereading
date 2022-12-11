@@ -196,7 +196,7 @@ async fn create_proxied_response(mut response: Response<Body>) -> Result<Respons
             buf
         }
         "br" => {
-            let mut decoder = brotli2::read::BrotliDecoder::new(&body_bytes[..]);
+            let mut decoder = brotli::Decompressor::new(&body_bytes[..], body_bytes.len());
             let mut buf = Vec::new();
             let _ = decoder.read_to_end(&mut buf);
             buf
