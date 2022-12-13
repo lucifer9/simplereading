@@ -1,11 +1,9 @@
 use std::env;
 use std::io::BufReader;
-
 use std::sync::Arc;
 use std::{collections::HashMap, convert::Infallible, net::SocketAddr};
 
 use anyhow::{Context, Result};
-
 use hyper::server::conn::AddrStream;
 use hyper::{
     service::{make_service_fn, service_fn},
@@ -15,7 +13,7 @@ use readability::extractor::{get_dom, Product};
 use readability::markup5ever_arcdom::Node;
 use readability::markup5ever_arcdom::NodeData::Element;
 use regex::Regex;
-use unicode_segmentation::UnicodeSegmentation;
+// use unicode_segmentation::UnicodeSegmentation;
 use url::Url;
 
 mod proxy;
@@ -128,21 +126,22 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
         all = all.replace("</p>", "");
         // let lines = all.lines().collect::<Vec<&str>>();
         // let total_str = lines.filter(|&x| !x.is_empty()).collect::<Vec<&str>>();
-        let size = 2500;
+        // let size = 2500;
         // let n = lines.len() / size + 1;
-        let all_chars = all.as_str().graphemes(true).collect::<Vec<&str>>();
+        // let all_chars = all.as_str().graphemes(true).collect::<Vec<&str>>();
         // dbg!(all_chars.len());
         // let chunks = all.len() / size + 1;
         let start = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN"> <voice name="zh-CN-XiaoxiaoNeural"> <prosody rate="+50.00%">"#;
         let end = r#"</prosody> </voice> </speak>"#;
         let mut mp3: Vec<u8> = Vec::new();
-        for chunk in all_chars.chunks(size) {
-            let mut ssml = String::from(start);
-            ssml.push_str(&chunk.join(""));
-            ssml.push_str(end);
-            // let t = utils::get_token().await?;
-            mp3.extend_from_slice(&utils::get_mp3(&ssml).await?);
-        }
+        // for chunk in all_chars.chunks(size) {
+        let mut ssml = String::from(start);
+        // ssml.push_str(&chunk.join(""));
+        ssml.push_str(&all);
+        ssml.push_str(end);
+        // let t = utils::get_token().await?;
+        mp3.extend_from_slice(&utils::get_mp3(&ssml).await?);
+        // }
         let mut resp = Response::new(Body::from(mp3));
         resp.headers_mut()
             .append(hyper::header::CONTENT_TYPE, "audio/mpeg".parse()?);
@@ -194,7 +193,7 @@ async fn main() {
     let context = AppContext {
         booksite: "https://m.booklink.me".to_string(),
         fontsize: env::var("FONTSIZE").unwrap_or_else(|_| "17".to_string()),
-        ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36".to_string(),
+        ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Mobile/15E148 Safari/604.1".to_string(),
         host: env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
         port: if debug {
             localport.clone()
@@ -281,14 +280,14 @@ async fn fetch_novel(url: &str) -> Result<Vec<u8>> {
     let output = tokio::process::Command::new("curl")
         .arg("-gL")
         .arg("--compressed")
-        .arg("-A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36'")
+        .arg("-A 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Mobile/15E148 Safari/604.1'")
         .arg(url)
         .output()
         .await?;
     let html = output.stdout;
     let mut len = html.len();
-    if len > 1024 {
-        len = 1024;
+    if len > 8192 {
+        len = 8192;
     }
     let tmp = String::from_utf8_lossy(&html[0..len])
         .to_string()

@@ -1,6 +1,6 @@
 [package]
 name = "simplereading"
-version = "0.9.23"
+version = "0.9.25"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -22,7 +22,7 @@ anyhow = "1.0"
 uuid = { version = "1.1", features = ["v4", "fast-rng", "macro-diagnostics"]}
 tokio-tungstenite = {version = "*", features = ["native-tls"]}
 futures-util = "0.3"
-unicode-segmentation = "1.9"
+#unicode-segmentation = "1.9"
 time = { version = "0.3", features = ["formatting"] }
 brotli = "3.3"
 
