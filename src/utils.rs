@@ -30,7 +30,7 @@ pub fn to_utf8(orig: &[u8], charset: &str) -> Result<Vec<u8>> {
     let s = e1.decode(orig, DecoderTrap::Strict).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("decode error: {}", charset),
+            format!("decode error: {charset}"),
         )
     })?;
     Ok(s.into_bytes())
@@ -58,7 +58,7 @@ pub async fn get_mp3(ssml: &str) -> Result<Vec<u8>> {
     writer.send(message_1.into()).await.map_err(|e| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("message_1 send error: {}", e),
+            format!("message_1 send error: {e}"),
         )
     })?;
     let mut message_2=format!("X-RequestId:{}\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:{}\r\nPath:ssml\r\n\r\n",&uuid,OffsetDateTime::now_utc().format(&dt_fmt)?);
@@ -66,7 +66,7 @@ pub async fn get_mp3(ssml: &str) -> Result<Vec<u8>> {
     writer.send(message_2.into()).await.map_err(|e| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("message_2 send error: {}", e),
+            format!("message_2 send error: {e}"),
         )
     })?;
     let mut mp3: Vec<u8> = Vec::new();

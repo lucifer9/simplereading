@@ -161,7 +161,7 @@ async fn get_all_txt(dest: String) -> Result<Product, anyhow::Error> {
         let last = dest.rfind('.').unwrap();
         if first < last {
             let base = &dest[first..last];
-            re = Regex::new(format!("{}_\\d+", base).as_str())?;
+            re = Regex::new(format!("{base}_\\d+").as_str())?;
         }
     }
     let body = fetch_novel(&dest).await?;
@@ -226,7 +226,7 @@ async fn main() {
     let server = Server::bind(&addr).serve(make_service);
 
     if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+        eprintln!("server error: {e}");
     }
 }
 
