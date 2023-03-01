@@ -37,34 +37,32 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                 .into_owned()
                 .collect()
         })
-        .unwrap_or_else(HashMap::new);
-    if params.contains_key("dest") {
-        let dest = params["dest"].clone();
-        if !dest.is_empty() {
-            return if dest.contains("fkzww.net") {
-                Response::builder()
-                    .status(hyper::http::StatusCode::FOUND)
-                    .header(hyper::header::LOCATION, dest)
-                    .body(Body::empty())
-                    .context("redirect")
-            } else {
-                let p0 = get_all_txt(dest).await?;
-                //toWrite := `<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>` +title + `</title></head><body><h3>` + title + `</h3><style> p{text-indent:2em; font-size:` + strconv.Itoa(FONTSIZE) +";}</style>\n" + content + `</body></html>`
-                let mut html = String::from(
-                    r#"<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>"#,
-                );
-                html.push_str(&p0.title);
-                html.push_str(r#"</title></head><body><h3>"#);
-                html.push_str(&p0.title);
-                html.push_str(r#"</h3><style> p{text-indent:2em; font-size:"#);
-                html.push_str(context.fontsize.to_string().as_str());
-                html.push_str(r#"px;}</style>"#);
+        .unwrap_or_default();
+    if let Some(dest) = params.get("dest").cloned().filter(|d| !d.is_empty()) {
+        if dest.contains("fkzww.net") {
+            return Response::builder()
+                .status(hyper::http::StatusCode::FOUND)
+                .header(hyper::header::LOCATION, dest)
+                .body(Body::empty())
+                .context("redirect");
+        } else {
+            let p0 = get_all_txt(dest).await?;
+            //toWrite := `<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>` +title + `</title></head><body><h3>` + title + `</h3><style> p{text-indent:2em; font-size:` + strconv.Itoa(FONTSIZE) +";}</style>\n" + content + `</body></html>`
+            let mut html = String::from(
+                r#"<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>"#,
+            );
+            html.push_str(&p0.title);
+            html.push_str(r#"</title></head><body><h3>"#);
+            html.push_str(&p0.title);
+            html.push_str(r#"</h3><style> p{text-indent:2em; font-size:"#);
+            html.push_str(context.fontsize.to_string().as_str());
+            html.push_str(r#"px;}</style>"#);
 
-                html.push_str(
+            html.push_str(
                     r#"<div id="div1" style="text-align:center"><audio id="au"><source src = "data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"></audio><button id="listen" type="button" onclick="listen()">Listen</button></div>"#
                 );
-                html.push_str(&p0.text);
-                let script = r#"
+            html.push_str(&p0.text);
+            let script = r#"
                 <script type="text/javascript">
                 function chg(e) {
                     if (e === "dark") {
@@ -107,20 +105,18 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
             </script>
                 </body></html>
                 "#;
-                html.push_str(script);
+            html.push_str(script);
 
-                let new_body = utils::compress_body(&html.into_bytes())?;
-                let new_resp = Response::builder()
-                    .status(hyper::http::StatusCode::OK)
-                    .header(hyper::header::CONTENT_TYPE, "text/html")
-                    .header(hyper::header::CONTENT_ENCODING, "br")
-                    .header(hyper::header::CONTENT_LENGTH, new_body.len().to_string())
-                    .body(Body::from(new_body))?;
-                Ok(new_resp)
-            };
+            let new_body = utils::compress_body(&html.into_bytes())?;
+            let new_resp = Response::builder()
+                .status(hyper::http::StatusCode::OK)
+                .header(hyper::header::CONTENT_TYPE, "text/html")
+                .header(hyper::header::CONTENT_ENCODING, "br")
+                .header(hyper::header::CONTENT_LENGTH, new_body.len().to_string())
+                .body(Body::from(new_body))?;
+            return Ok(new_resp);
         }
-    } else if params.contains_key("listen") {
-        let listen = params["listen"].clone();
+    } else if let Some(listen) = params.get("listen").cloned() {
         let mut all = get_all_txt(listen).await?.text;
         all = all.replace("<p>", "");
         all = all.replace("</p>", "");
@@ -146,11 +142,8 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
         resp.headers_mut()
             .append(hyper::header::CONTENT_TYPE, "audio/mpeg".parse()?);
         return Ok(resp);
-    } else {
-        let resp = proxy::call(context.clone(), &context.booksite, req).await;
-        return resp;
     }
-    Ok(Response::new(Body::from("Hello World")))
+    proxy::call(context.clone(), &context.booksite, req).await
 }
 
 async fn get_all_txt(dest: String) -> Result<Product, anyhow::Error> {
