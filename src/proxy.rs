@@ -176,12 +176,20 @@ async fn create_proxied_response(mut response: Response<Body>) -> Result<Respons
     //     }
     //     None => "",
     // };
-    let decoder = if let Some(value) = headers.get(hyper::header::CONTENT_ENCODING) {
-        parts.headers.remove(hyper::header::CONTENT_ENCODING);
-        value.to_str()?
-    } else {
-        ""
-    };
+    // let decoder = if let Some(value) = headers.get(hyper::header::CONTENT_ENCODING) {
+    //     parts.headers.remove(hyper::header::CONTENT_ENCODING);
+    //     value.to_str()?
+    // } else {
+    //     ""
+    // };
+    // Determine the content encoding and decode the response body if necessary
+    let decoder = headers
+        .get(hyper::header::CONTENT_ENCODING)
+        .and_then(|value| {
+            parts.headers.remove(hyper::header::CONTENT_ENCODING);
+            value.to_str().ok()
+        })
+        .unwrap_or_default();
     let mut decoded = match decoder {
         "gzip" => {
             let mut decoder = flate2::read::GzDecoder::new(&body_bytes[..]);
@@ -204,6 +212,7 @@ async fn create_proxied_response(mut response: Response<Body>) -> Result<Respons
         _ => body_bytes.to_vec(),
     };
 
+    // Convert the response body to UTF-8 encoding if it is an HTML document and not already UTF-8
     let content_type = headers
         .get(hyper::header::CONTENT_TYPE)
         .context("get content type error")?;
@@ -215,7 +224,7 @@ async fn create_proxied_response(mut response: Response<Body>) -> Result<Respons
             let y = x[1];
             parts.headers.insert(
                 hyper::header::CONTENT_TYPE,
-                (x[0].to_owned() + "charset=utf-8").parse()?,
+                format!("{}charset=utf-8", x[0].to_owned()).parse()?,
             );
             encoding = y.trim();
         }
