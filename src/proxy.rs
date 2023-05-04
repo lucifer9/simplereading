@@ -6,6 +6,7 @@ use anyhow::{Context, Result};
 use hyper::header::{HeaderMap, HeaderValue};
 use hyper::{Body, Client, Request, Response, Uri};
 use lazy_static::lazy_static;
+use log::{debug, info};
 
 use crate::{utils, AppContext};
 
@@ -15,12 +16,15 @@ async fn modify_response(
     resp: Response<Body>,
 ) -> Result<Response<Body>> {
     let mut res = Response::builder().status(resp.status());
+    info!("modify response");
+    debug!("status: {}", resp.status());
     let new_headers = res.headers_mut().context("failed to get headers")?;
     let mut need_compress = true;
     for (key, value) in resp.headers().iter() {
         let mut text = value.to_str()?.to_string();
         if key == hyper::header::SET_COOKIE {
             text = text.replace(".booklink.me", &context.host);
+            debug!("set cookie: {}", text);
         }
         if key == hyper::header::LOCATION {
             need_compress = false;
@@ -36,6 +40,7 @@ async fn modify_response(
                     text = format!("{}://{}/?dest={}", context.scheme, context.host, text);
                 }
                 new_headers.remove(hyper::header::LOCATION);
+                debug!("redirect to: {}", text);
             }
         }
         new_headers.append(key, text.as_str().parse()?);
@@ -121,10 +126,12 @@ async fn modify_response(
             hyper::header::CONTENT_ENCODING,
             HeaderValue::from_static("br"),
         );
+        debug!("compress body");
         new_headers.insert(
             hyper::header::CONTENT_LENGTH,
             body_bytes.len().to_string().parse()?,
         );
+        debug!("set content length: {}", body_bytes.len());
     }
     res.body(Body::from(body_bytes))
         .context("modify response error")
@@ -165,6 +172,7 @@ fn remove_hop_headers(headers: &mut HeaderMap<HeaderValue>) {
 
 async fn create_proxied_response(mut response: Response<Body>) -> Result<Response<Body>> {
     // println!("original response: {:#?}", response);
+    info!("create_proxied_response");
     remove_hop_headers(response.headers_mut());
     let (mut parts, body) = response.into_parts();
     let body_bytes = hyper::body::to_bytes(body).await?;
@@ -190,6 +198,7 @@ async fn create_proxied_response(mut response: Response<Body>) -> Result<Respons
             value.to_str().ok()
         })
         .unwrap_or_default();
+    debug!("decoder: {}", &decoder);
     let mut decoded = match decoder {
         "gzip" => {
             let mut decoder = flate2::read::GzDecoder::new(&body_bytes[..]);
@@ -229,6 +238,7 @@ async fn create_proxied_response(mut response: Response<Body>) -> Result<Respons
             encoding = y.trim();
         }
         let e = &encoding.to_lowercase();
+        debug!("encoding: {}", &e);
         decoded = utils::to_utf8(&decoded, e)?;
     }
     Ok(Response::from_parts(parts, decoded.into()))

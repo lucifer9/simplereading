@@ -1,24 +1,26 @@
-use std::env;
-use std::io::BufReader;
-use std::sync::Arc;
-use std::{collections::HashMap, convert::Infallible, net::SocketAddr};
-
 use anyhow::{Context, Result};
 use hyper::server::conn::AddrStream;
 use hyper::{
     service::{make_service_fn, service_fn},
     Body, Request, Response, Server,
 };
+use log::{debug, info};
 use readability::extractor::{get_dom, Product};
 use readability::markup5ever_arcdom::Node;
 use readability::markup5ever_arcdom::NodeData::Element;
 use regex::Regex;
+use std::env;
+use std::io::BufReader;
+
+use std::sync::Arc;
+use std::{collections::HashMap, convert::Infallible, net::SocketAddr};
 // use unicode_segmentation::UnicodeSegmentation;
 use url::Url;
 
 mod proxy;
 mod utils;
 
+#[derive(Debug)]
 pub struct AppContext {
     booksite: String,
     fontsize: String,
@@ -39,7 +41,9 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
         })
         .unwrap_or_default();
     if let Some(dest) = params.get("dest").cloned().filter(|d| !d.is_empty()) {
+        info!("dest: {}", &dest);
         if dest.contains("fkzww.net") {
+            info!("fkzww.net: redirect");
             return Response::builder()
                 .status(hyper::http::StatusCode::FOUND)
                 .header(hyper::header::LOCATION, dest)
@@ -106,7 +110,7 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                 </body></html>
                 "#;
             html.push_str(script);
-
+            debug!("html: {}", &html);
             let new_body = utils::compress_body(&html.into_bytes())?;
             let new_resp = Response::builder()
                 .status(hyper::http::StatusCode::OK)
@@ -135,6 +139,7 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
         // ssml.push_str(&chunk.join(""));
         ssml.push_str(&all);
         ssml.push_str(end);
+        debug!("ssml: {}", &ssml);
         // let t = utils::get_token().await?;
         mp3.extend_from_slice(&utils::get_mp3(&ssml).await?);
         // }
@@ -161,6 +166,7 @@ async fn get_all_txt(dest: String) -> Result<Product, anyhow::Error> {
     let mut p0 = get_content(&body[..], &Url::parse(&dest)?, &re)?;
     let mut next = p0.content.clone();
     while !next.is_empty() {
+        debug!("next: {}", &next);
         let next_url = if next.contains("http") {
             Url::parse(&next)?
         } else {
@@ -176,7 +182,11 @@ async fn get_all_txt(dest: String) -> Result<Product, anyhow::Error> {
 
 #[tokio::main]
 async fn main() {
-    let debug = env::var("DEBUG").is_ok();
+    let dev = env::var("DEV").is_ok();
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "info");
+    }
+    env_logger::init();
     let localport = env::var("LOCAL_PORT").unwrap_or_else(|_| "9005".to_string());
     let listenlocal = env::var("LISTEN_LOCAL").is_ok();
     let listenaddr = match listenlocal {
@@ -186,15 +196,16 @@ async fn main() {
     let context = AppContext {
         booksite: "https://m.booklink.me".to_string(),
         fontsize: env::var("FONTSIZE").unwrap_or_else(|_| "17".to_string()),
-        ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Mobile/15E148 Safari/604.1".to_string(),
+        ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 16_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Mobile/15E148 Safari/604.1".to_string(),
         host: env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
-        port: if debug {
+        port: if dev {
             localport.clone()
         }else{
             env::var("PORT").unwrap_or_else(|_| "".to_string())
         },
         scheme: env::var("SCHEME").unwrap_or_else(|_| "http".to_string()),
     };
+    info!("context: {:?}", &context);
     let c = Arc::new(context);
     // A `MakeService` that produces a `Service` to handle each connection.
     let make_service = make_service_fn(move |conn: &AddrStream| {
@@ -217,7 +228,7 @@ async fn main() {
     let addr = SocketAddr::from((listenaddr, localport.parse().unwrap()));
 
     let server = Server::bind(&addr).serve(make_service);
-
+    info!("SimpleReading Server Started.");
     if let Err(e) = server.await {
         eprintln!("server error: {e}");
     }
@@ -264,20 +275,19 @@ fn get_content(content: &[u8], url: &Url, re: &Regex) -> Result<Product> {
     let dom = get_dom(&mut bf)?;
 
     let next = get_next_link(dom.document.clone(), re);
+    debug!("next: {}", &next);
     let mut p = readability::extractor::extract(dom, url)?;
     p.content = next;
     Ok(p)
 }
 
 async fn fetch_novel(url: &str) -> Result<Vec<u8>> {
-    let output = tokio::process::Command::new("curl")
-        .arg("-gL")
+    let output = tokio::process::Command::new("curl").arg("-gL")
         .arg("--compressed")
-        .arg("-A 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Mobile/15E148 Safari/604.1'")
-        .arg(url)
-        .output()
-        .await?;
+        .arg("-A 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Mobile/15E148 Safari/604.1'")
+        .arg(url).output().await?;
     let html = output.stdout;
+    debug!("{}", String::from_utf8_lossy(output.stderr.as_slice()));
     let mut len = html.len();
     if len > 8192 {
         len = 8192;

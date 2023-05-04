@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use brotli::CompressorReader;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use futures_util::{SinkExt, StreamExt};
+use log::info;
 use time::{format_description, OffsetDateTime};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -51,14 +52,14 @@ pub async fn get_mp3(ssml: &str) -> Result<Vec<u8>> {
     let mut url = String::from(ENDPOINT2);
     url.push_str("?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4");
     url.push_str(format!("&X-ConnectionId={}", &uuid).as_str());
-
+    info!("mp3 url: {}", &url);
     // Convert the URL into a WebSocket request
     let mut req = url.into_client_request()?;
     req.headers_mut().append(
         "Origin",
         HeaderValue::from_static("chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold"),
     );
-    req.headers_mut().append(USER_AGENT, HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.62"));
+    req.headers_mut().append(USER_AGENT, HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36 Edg/112.0.1722.68"));
 
     // Send the WebSocket request and split the resulting stream into a writer and a reader
     let (ws, _) = connect_async(req).await.expect("ws connect error");

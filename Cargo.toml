@@ -19,10 +19,10 @@ readability = { git = "https://github.com/lucifer9/readability", default-feature
 encoding = "0.2"
 hyper-tls = "0.5"
 anyhow = "1.0"
-uuid = { version = "1.1", features = ["v4", "fast-rng", "macro-diagnostics"]}
+uuid = { version = "1.1", features = ["v4", "fast-rng"]}
 tokio-tungstenite = {version = "*", features = ["native-tls"]}
 futures-util = "0.3"
 #unicode-segmentation = "1.9"
 time = { version = "0.3", features = ["formatting"] }
 brotli = "3.3"
-
+env_logger = "0.10"
