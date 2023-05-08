@@ -29,7 +29,7 @@ pub fn compress_body(/*new_headers: &mut HeaderMap, */ body: &[u8]) -> Result<Ve
 }
 
 // Convert the given bytes to UTF-8 using the specified character set
-pub fn to_utf8(orig: &[u8], charset: &str) -> Result<Vec<u8>> {
+pub fn to_utf8(orig: &[u8], charset: &str) -> Result<String> {
     let e1 = encoding_from_whatwg_label(charset).context("encoding error")?;
     let s = e1.decode(orig, DecoderTrap::Strict).map_err(|_| {
         io::Error::new(
@@ -37,7 +37,7 @@ pub fn to_utf8(orig: &[u8], charset: &str) -> Result<Vec<u8>> {
             format!("decode error: {charset}"),
         )
     })?;
-    Ok(s.into_bytes())
+    Ok(s)
 }
 
 // Send a request to the speech service and return the resulting MP3 audio data
@@ -148,12 +148,12 @@ mod tests {
         let orig = b"Hello, world!";
         let charset = "utf-8";
         let result = to_utf8(orig, charset).unwrap();
-        assert_eq!(result, orig.to_vec());
+        assert_eq!(result, String::from("Hello, world!"));
 
         let orig = b"\xc4\xe3\xba\xc3\xa3\xac\xca\xc0\xbd\xe7\xa3\xa1";
         let charset = "gb18030";
         let result = to_utf8(orig, charset).unwrap();
-        assert_eq!(result, "你好，世界！".as_bytes().to_vec());
+        assert_eq!(result, "你好，世界！");
 
         // Test with invalid charset
         let orig = b"\xc3\xa9";

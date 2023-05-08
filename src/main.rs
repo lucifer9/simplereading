@@ -282,23 +282,16 @@ fn get_content(content: &[u8], url: &Url, re: &Regex) -> Result<Product> {
 }
 
 async fn fetch_novel(url: &str) -> Result<Vec<u8>> {
-    let output = tokio::process::Command::new("curl").arg("-gL")
+    let output = tokio::process::Command::new("curl").arg("-gsL")
         .arg("--compressed")
         .arg("-A 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Mobile/15E148 Safari/604.1'")
         .arg(url).output().await?;
     let html = output.stdout;
-    debug!("{}", String::from_utf8_lossy(output.stderr.as_slice()));
-    let mut len = html.len();
-    if len > 8192 {
-        len = 8192;
-    }
-    let tmp = String::from_utf8_lossy(&html[0..len])
-        .to_string()
-        .to_lowercase();
-    let mut charset = "gb18030";
-    if tmp.contains("charset=") && (tmp.contains("utf-8") || tmp.contains("utf8")) {
-        charset = "utf-8";
-    }
 
-    utils::to_utf8(&html, charset)
+    let r = if let Ok(r) = String::from_utf8(html.clone()) {
+        r
+    } else {
+        utils::to_utf8(&html, "gb18030")?
+    };
+    Ok(r.as_bytes().to_vec())
 }

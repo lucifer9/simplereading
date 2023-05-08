@@ -239,7 +239,7 @@ async fn create_proxied_response(mut response: Response<Body>) -> Result<Respons
         }
         let e = &encoding.to_lowercase();
         debug!("encoding: {}", &e);
-        decoded = utils::to_utf8(&decoded, e)?;
+        decoded = utils::to_utf8(&decoded, e)?.as_bytes().to_vec();
     }
     Ok(Response::from_parts(parts, decoded.into()))
 }
