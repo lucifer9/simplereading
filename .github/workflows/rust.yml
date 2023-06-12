@@ -58,13 +58,11 @@ jobs:
     name: build
     needs: [test, fmt, clippy]
     runs-on: ubuntu-latest
-    container:
-      image: debian:stable
-      env:
-        CARGO_PROFILE_RELEASE_LTO: true
-        CARGO_PROFILE_RELEASE_STRIP: true
-        CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
-        RUSTFLAGS: "-C target-cpu=broadwell"
+    env:
+      CARGO_PROFILE_RELEASE_LTO: true
+      CARGO_PROFILE_RELEASE_STRIP: true
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
+      RUSTFLAGS: "-C target-cpu=broadwell"
     steps:
       - id: prepare
         run: |
