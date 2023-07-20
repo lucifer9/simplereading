@@ -76,23 +76,6 @@ jobs:
         with:
           command: build
           args: --release
-      - id: upx
-        uses: pozetroninc/github-action-get-latest-release@master
-        with:
-          owner: upx
-          repo: upx
-          excludes: prerelease, draft
-      - id: upxv
-        uses: frabert/replace-string-action@v2
-        with:
-          string: ${{ steps.upx.outputs.release }}
-          pattern: 'v'
-          replace-with: ''
-      - id: compress
-        run: |
-          wget -O upx.tar.xz https://github.com/upx/upx/releases/download/${{ steps.upx.outputs.release }}/upx-${{ steps.upxv.outputs.replaced }}-amd64_linux.tar.xz
-          tar --strip-components=1 --wildcards  -x */upx -f upx.tar.xz -C .
-          ./upx --best --lzma target/release/simplereading
       - name: Install SSH key
         uses: shimataro/ssh-key-action@v2
         with:
