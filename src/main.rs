@@ -9,6 +9,7 @@ use readability::extractor::{get_dom, Product};
 use readability::markup5ever_arcdom::Node;
 use readability::markup5ever_arcdom::NodeData::Element;
 use regex::Regex;
+use std::collections::VecDeque;
 use std::env;
 use std::io::BufReader;
 
@@ -235,40 +236,77 @@ async fn main() {
 }
 
 fn get_next_link(node: Arc<Node>, re: &Regex) -> String {
-    let handle = node;
-    for child in handle.children.borrow().iter() {
-        let c = child.clone();
-        if let Element {
-            ref name,
-            ref attrs,
-            ..
-        } = c.data
-        {
-            if name.local.as_ref() == "a" {
-                for h in attrs.borrow().iter() {
-                    if h.name.local.as_ref() == "href" {
-                        let url = h.value.to_string().to_owned();
-                        if url.len() >= 4 && url.contains('/') && url.contains('.') {
-                            let first = url.rfind('/').unwrap() + 1;
-                            let last = url.rfind('.').unwrap();
-                            if first < last {
-                                let dest = &url[first..last];
-                                if re.is_match(dest) {
-                                    return url;
+    let mut queue = VecDeque::new();
+    queue.push_back(node);
+
+    while let Some(handle) = queue.pop_front() {
+        for child in handle.children.borrow().iter() {
+            let c = child.clone();
+            if let Element {
+                ref name,
+                ref attrs,
+                ..
+            } = c.data
+            {
+                if name.local.as_ref() == "a" {
+                    for h in attrs.borrow().iter() {
+                        if h.name.local.as_ref() == "href" {
+                            let url = h.value.to_string().to_owned();
+                            if url.len() >= 4 && url.contains('/') && url.contains('.') {
+                                let first = url.rfind('/').unwrap() + 1;
+                                let last = url.rfind('.').unwrap();
+                                if first < last {
+                                    let dest = &url[first..last];
+                                    if re.is_match(dest) {
+                                        return url;
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-        let next = get_next_link(c, re);
-        if !next.is_empty() {
-            return next;
+            queue.push_back(c);
         }
     }
     "".to_string()
 }
+
+// fn get_next_link(node: Arc<Node>, re: &Regex) -> String {
+//     let handle = node;
+//     for child in handle.children.borrow().iter() {
+//         let c = child.clone();
+//         if let Element {
+//             ref name,
+//             ref attrs,
+//             ..
+//         } = c.data
+//         {
+//             if name.local.as_ref() == "a" {
+//                 for h in attrs.borrow().iter() {
+//                     if h.name.local.as_ref() == "href" {
+//                         let url = h.value.to_string().to_owned();
+//                         if url.len() >= 4 && url.contains('/') && url.contains('.') {
+//                             let first = url.rfind('/').unwrap() + 1;
+//                             let last = url.rfind('.').unwrap();
+//                             if first < last {
+//                                 let dest = &url[first..last];
+//                                 if re.is_match(dest) {
+//                                     return url;
+//                                 }
+//                             }
+//                         }
+//                     }
+//                 }
+//             }
+//         }
+//         let next = get_next_link(c, re);
+//         if !next.is_empty() {
+//             return next;
+//         }
+//     }
+//     "".to_string()
+// }
 
 fn get_content(content: &[u8], url: &Url, re: &Regex) -> Result<Product> {
     let mut bf = BufReader::new(content);
