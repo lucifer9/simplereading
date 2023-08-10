@@ -160,7 +160,7 @@ async fn get_all_txt(dest: String) -> Result<Product, anyhow::Error> {
         let last = dest.rfind('.').unwrap();
         if first < last {
             let base = &dest[first..last];
-            re = Regex::new(format!("{base}_\\d+").as_str())?;
+            re = Regex::new(format!("{base}[_-]\\d+").as_str())?;
         }
     }
     let body = fetch_novel(&dest).await?;
