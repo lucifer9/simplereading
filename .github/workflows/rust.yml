@@ -52,7 +52,7 @@ jobs:
       - uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: -- -D warnings
+          args: --no-deps -- -D warning
 
   build:
     name: build
@@ -88,3 +88,9 @@ jobs:
           ssh -p37201 lucifer@free.icean.xyz systemctl --user stop book.service
           scp -P37201 target/release/simplereading lucifer@free.icean.xyz:work/simplereading
           ssh -p37201 lucifer@free.icean.xyz systemctl --user start book.service
+      - name: Telegram Notify
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          message: ${{ github.repository }} deployment completed.
