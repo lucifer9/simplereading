@@ -29,5 +29,5 @@ tokio-tungstenite = { version = "*", features = ["native-tls"] }
 futures-util = "0.3"
 #unicode-segmentation = "1.9"
 time = { version = "0.3", features = ["formatting"] }
-brotli = "3.3"
+brotli = "3.4"
 env_logger = "0.10"
