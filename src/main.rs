@@ -1,9 +1,8 @@
-use anyhow::{Context, Result};
-use hyper::server::conn::AddrStream;
-use hyper::{
-    service::{make_service_fn, service_fn},
-    Body, Request, Response, Server,
-};
+use anyhow::Result;
+use http_body_util::Full;
+use hyper::body::Bytes;
+use hyper::{Request, Response};
+use hyper_util::rt::TokioIo;
 use log::{debug, info};
 use readability::extractor::{get_dom, Product};
 use readability::markup5ever_arcdom::Node;
@@ -14,8 +13,11 @@ use std::env;
 use std::io::BufReader;
 
 use std::sync::Arc;
-use std::{collections::HashMap, convert::Infallible, net::SocketAddr};
+use std::{collections::HashMap, net::SocketAddr};
 // use unicode_segmentation::UnicodeSegmentation;
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use tokio::net::TcpListener;
 use url::Url;
 
 mod proxy;
@@ -31,7 +33,10 @@ pub struct AppContext {
     scheme: String,
 }
 
-async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response<Body>> {
+async fn handle(
+    context: Arc<AppContext>,
+    req: Request<hyper::body::Incoming>,
+) -> Result<Response<Full<Bytes>>> {
     let params: HashMap<String, String> = req
         .uri()
         .query()
@@ -45,11 +50,15 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
         info!("dest: {}", &dest);
         if dest.contains("fkzww.net") {
             info!("fkzww.net: redirect");
-            return Response::builder()
+            let r = Response::builder()
                 .status(hyper::http::StatusCode::FOUND)
                 .header(hyper::header::LOCATION, dest)
-                .body(Body::empty())
-                .context("redirect");
+                .body(Full::new(Bytes::new()))?;
+            // let r = Response::new(Full::new(Bytes::new()));
+            // r.headers_mut()
+            //     .insert(hyper::header::LOCATION, dest.parse()?);
+            // *r.status_mut() = hyper::http::StatusCode::FOUND;
+            return Ok(r);
         } else {
             let p0 = get_all_txt(dest).await?;
             //toWrite := `<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>` +title + `</title></head><body><h3>` + title + `</h3><style> p{text-indent:2em; font-size:` + strconv.Itoa(FONTSIZE) +";}</style>\n" + content + `</body></html>`
@@ -118,7 +127,7 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
                 .header(hyper::header::CONTENT_TYPE, "text/html")
                 .header(hyper::header::CONTENT_ENCODING, "br")
                 .header(hyper::header::CONTENT_LENGTH, new_body.len().to_string())
-                .body(Body::from(new_body))?;
+                .body(Full::from(new_body))?;
             return Ok(new_resp);
         }
     } else if let Some(listen) = params.get("listen").cloned() {
@@ -144,7 +153,7 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
         // let t = utils::get_token().await?;
         mp3.extend_from_slice(&utils::get_mp3(&ssml).await?);
         // }
-        let mut resp = Response::new(Body::from(mp3));
+        let mut resp = Response::new(Full::from(mp3));
         resp.headers_mut()
             .append(hyper::header::CONTENT_TYPE, "audio/mpeg".parse()?);
         return Ok(resp);
@@ -152,7 +161,7 @@ async fn handle(context: Arc<AppContext>, req: Request<Body>) -> Result<Response
     proxy::call(context.clone(), &context.booksite, req).await
 }
 
-async fn get_all_txt(dest: String) -> Result<Product, anyhow::Error> {
+async fn get_all_txt(dest: String) -> Result<Product> {
     let base = Url::parse(&dest)?;
     let mut re: Regex = Regex::new(r"xxx")?;
     if dest.contains('/') && dest.contains('.') {
@@ -182,7 +191,7 @@ async fn get_all_txt(dest: String) -> Result<Product, anyhow::Error> {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let dev = env::var("DEV").is_ok();
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info");
@@ -197,7 +206,7 @@ async fn main() {
     let context = AppContext {
         booksite: "https://m.booklink.me".to_string(),
         fontsize: env::var("FONTSIZE").unwrap_or_else(|_| "17".to_string()),
-        ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 16_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Mobile/15E148 Safari/604.1".to_string(),
+        ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1".to_string(),
         host: env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
         port: if dev {
             localport.clone()
@@ -208,30 +217,23 @@ async fn main() {
     };
     info!("context: {:?}", &context);
     let c = Arc::new(context);
-    // A `MakeService` that produces a `Service` to handle each connection.
-    let make_service = make_service_fn(move |conn: &AddrStream| {
-        // We have to clone the context to share it with each invocation of
-        // `make_service`. If your data doesn't implement `Clone` consider using
-        // an `std::sync::Arc`.
-        let context = c.clone();
-
-        // You can grab the address of the incoming connection like so.
-        let _addr = conn.remote_addr();
-
-        // Create a `Service` for responding to the request.
-        let service = service_fn(move |req| handle(context.clone(), req));
-
-        // Return the service to hyper.
-        async move { Ok::<_, Infallible>(service) }
-    });
 
     // Run the server like above...
     let addr = SocketAddr::from((listenaddr, localport.parse().unwrap()));
+    let listener = TcpListener::bind(addr).await?;
+    info!("Listening on: {}", addr);
 
-    let server = Server::bind(&addr).serve(make_service);
-    info!("SimpleReading Server Started.");
-    if let Err(e) = server.await {
-        eprintln!("server error: {e}");
+    loop {
+        let (stream, _) = listener.accept().await?;
+        let io = TokioIo::new(stream);
+        let c = c.clone();
+        let service = service_fn(move |req| handle(c.clone(), req));
+
+        tokio::task::spawn(async move {
+            if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
+                println!("Failed to serve connection: {:?}", err);
+            }
+        });
     }
 }
 
@@ -331,5 +333,6 @@ async fn fetch_novel(url: &str) -> Result<Vec<u8>> {
     } else {
         utils::to_utf8(&html, "gb18030")?
     };
+
     Ok(r.as_bytes().to_vec())
 }

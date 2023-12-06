@@ -3,8 +3,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use http_body_util::{BodyExt, Full};
+use hyper::body::{Bytes, Incoming};
 use hyper::header::{HeaderMap, HeaderValue};
-use hyper::{Body, Client, Request, Response, Uri};
+use hyper::{Request, Response, Uri};
+use hyper_util::{client::legacy::Client, rt::TokioExecutor};
 use lazy_static::lazy_static;
 use log::{debug, info};
 
@@ -13,8 +16,8 @@ use crate::{utils, AppContext};
 async fn modify_response(
     context: Arc<AppContext>,
     // forward_uri: &str,
-    resp: Response<Body>,
-) -> Result<Response<Body>> {
+    resp: Response<Full<Bytes>>,
+) -> Result<Response<Full<Bytes>>> {
     let mut res = Response::builder().status(resp.status());
     info!("modify response");
     debug!("status: {}", resp.status());
@@ -45,10 +48,7 @@ async fn modify_response(
         }
         new_headers.append(key, text.as_str().parse()?);
     }
-    let mut body_bytes = hyper::body::to_bytes(resp.into_body())
-        .await
-        .context("body to bytes error")?
-        .to_vec();
+    let mut body_bytes: Vec<u8> = resp.collect().await?.to_bytes().to_vec();
     if let Some(v) = new_headers.get(hyper::header::CONTENT_TYPE) {
         if v.to_str()?.contains("text") {
             let mut body_string = String::from_utf8(body_bytes)?;
@@ -133,8 +133,7 @@ async fn modify_response(
         );
         debug!("set content length: {}", body_bytes.len());
     }
-    res.body(Body::from(body_bytes))
-        .context("modify response error")
+    Ok(res.body(Full::from(body_bytes))?)
 }
 
 fn is_hop_header(name: &str) -> bool {
@@ -170,12 +169,14 @@ fn remove_hop_headers(headers: &mut HeaderMap<HeaderValue>) {
     }
 }
 
-async fn create_proxied_response(mut response: Response<Body>) -> Result<Response<Body>> {
+async fn create_proxied_response(
+    mut response: Response<Incoming>,
+) -> Result<Response<Full<Bytes>>> {
     // println!("original response: {:#?}", response);
     info!("create_proxied_response");
     remove_hop_headers(response.headers_mut());
     let (mut parts, body) = response.into_parts();
-    let body_bytes = hyper::body::to_bytes(body).await?;
+    let body_bytes = body.collect().await?.to_bytes().to_vec();
     let headers = parts.headers.clone();
     // let decoder = match headers.get(hyper::header::CONTENT_ENCODING) {
     //     Some(value) => {
@@ -244,7 +245,7 @@ async fn create_proxied_response(mut response: Response<Body>) -> Result<Respons
     Ok(Response::from_parts(parts, decoded.into()))
 }
 
-fn forward_uri(forward_url: &str, req: &Request<Body>) -> Result<Uri> {
+fn forward_uri(forward_url: &str, req: &Request<Incoming>) -> Result<Uri> {
     if !forward_url.is_empty() {
         // let new_uri = match req.uri().query() {
         //     Some(query) => format!("{}{}?{}", forward_url, req.uri().path(), query),
@@ -264,8 +265,8 @@ fn forward_uri(forward_url: &str, req: &Request<Body>) -> Result<Uri> {
 fn create_proxied_request(
     context: Arc<AppContext>,
     forward_url: &str,
-    mut request: Request<Body>,
-) -> Result<Request<Body>> {
+    mut request: Request<Incoming>,
+) -> Result<Request<Incoming>> {
     remove_hop_headers(request.headers_mut());
     *request.uri_mut() = forward_uri(forward_url, &request)?;
 
@@ -288,11 +289,12 @@ fn create_proxied_request(
 pub async fn call(
     context: Arc<AppContext>,
     forward_uri: &str,
-    request: Request<Body>,
-) -> Result<Response<Body>> {
+    request: Request<Incoming>,
+) -> Result<Response<Full<Bytes>>> {
     let proxied_request = create_proxied_request(context.clone(), forward_uri, request)?;
     let https = hyper_tls::HttpsConnector::new();
-    let client: Client<_, Body> = Client::builder().build(https);
+    // let client: Client<_, Body> = Client::builder().build(https);
+    let client = Client::builder(TokioExecutor::new()).build(https);
     let response = client.request(proxied_request).await?;
     let proxied_response = create_proxied_response(response).await?;
     modify_response(context.clone(), proxied_response).await
