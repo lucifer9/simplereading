@@ -18,8 +18,8 @@ use std::{collections::HashMap, net::SocketAddr};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use tokio::net::TcpListener;
+use tokio::task;
 use url::Url;
-
 mod proxy;
 mod utils;
 
@@ -132,7 +132,7 @@ async fn handle(
         }
     } else if let Some(listen) = params.get("listen").cloned() {
         let mut all = get_all_txt(listen).await?.text;
-        all = all.replace("<p>", "");
+        // all = all.replace("<p>", "");
         all = all.replace("</p>", "");
         // let lines = all.lines().collect::<Vec<&str>>();
         // let total_str = lines.filter(|&x| !x.is_empty()).collect::<Vec<&str>>();
@@ -141,18 +141,43 @@ async fn handle(
         // let all_chars = all.as_str().graphemes(true).collect::<Vec<&str>>();
         // dbg!(all_chars.len());
         // let chunks = all.len() / size + 1;
+        let lines = all.split("<p>").collect::<Vec<&str>>();
+        let n = 10;
         let start = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN"> <voice name="zh-CN-XiaoxiaoNeural"> <prosody rate="+50.00%">"#;
         let end = r#"</prosody> </voice> </speak>"#;
-        let mut mp3: Vec<u8> = Vec::new();
+        let mut mp3 = Vec::new();
         // for chunk in all_chars.chunks(size) {
-        let mut ssml = String::from(start);
+        let size = lines.len() / n;
+        debug!("size={size}");
+        let mut handles = Vec::new();
+        for i in 0..n {
+            let mut ssml = String::from(start);
+            let s = if i == n - 1 {
+                lines[i * size..].join("")
+            } else {
+                lines[i * size..(i + 1) * size].join("")
+            };
+            ssml.push_str(&s);
+            ssml.push_str(end);
+            debug!("ssml: {}", &ssml);
+            // let t = utils::get_token().await?;
+            let handle = task::spawn(async move { utils::get_mp3(&ssml).await });
+            handles.push(handle);
+            // mp3[i].extend_from_slice(&utils::get_mp3(&ssml).await?);
+        }
+        // let mut ssml = String::from(start);
         // ssml.push_str(&chunk.join(""));
-        ssml.push_str(&all);
-        ssml.push_str(end);
-        debug!("ssml: {}", &ssml);
+        // ssml.push_str(&all);
+        // ssml.push_str(end);
+        // debug!("ssml: {}", &ssml);
         // let t = utils::get_token().await?;
-        mp3.extend_from_slice(&utils::get_mp3(&ssml).await?);
+        // mp3.extend_from_slice(&utils::get_mp3(&ssml).await?);
         // }
+        for handle in handles {
+            if let Ok(result) = handle.await {
+                mp3.extend_from_slice(&result?);
+            }
+        }
         let mut resp = Response::new(Full::from(mp3));
         resp.headers_mut()
             .append(hyper::header::CONTENT_TYPE, "audio/mpeg".parse()?);
@@ -193,6 +218,9 @@ async fn get_all_txt(dest: String) -> Result<Product> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let dev = env::var("DEV").is_ok();
+    if dev {
+        env::set_var("RUST_LOG", "debug");
+    }
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info");
     }

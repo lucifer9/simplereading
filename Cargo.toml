@@ -1,6 +1,6 @@
 [package]
 name = "simplereading"
-version = "0.9.28"
+version = "0.9.30"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -23,6 +23,7 @@ html5ever = "0.26"
 regex = "1"
 kuchiki = "0.8"
 log = "0.4"
+#readability = { path = "../readability", default-features = false }
 readability = { git = "https://github.com/lucifer9/readability", default-features = false }
 encoding = "0.2"
 anyhow = "1.0"

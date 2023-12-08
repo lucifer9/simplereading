@@ -44,8 +44,8 @@ pub fn to_utf8(orig: &[u8], charset: &str) -> Result<String> {
 pub async fn get_mp3(ssml: &str) -> Result<Vec<u8>> {
     // Define the timestamp format for the X-Timestamp header
     let dt_fmt = format_description::parse(DATE_FORMAT_STR)?;
-    // Generate a unique identifier for the request
 
+    // Generate a unique identifier for the request
     let uuid = Uuid::new_v4().as_simple().to_string().to_uppercase();
 
     // Construct the WebSocket URL with the TrustedClientToken and X-ConnectionId parameters
@@ -59,7 +59,7 @@ pub async fn get_mp3(ssml: &str) -> Result<Vec<u8>> {
         "Origin",
         HeaderValue::from_static("chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold"),
     );
-    req.headers_mut().append(USER_AGENT, HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36 Edg/112.0.1722.68"));
+    req.headers_mut().append(USER_AGENT, HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"));
 
     // Send the WebSocket request and split the resulting stream into a writer and a reader
     let (ws, _) = connect_async(req).await.expect("ws connect error");
