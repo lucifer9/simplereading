@@ -5,13 +5,14 @@ use hyper::{Request, Response};
 use hyper_util::rt::TokioIo;
 use log::{debug, info};
 use readability::extractor::{get_dom, Product};
-use readability::markup5ever_arcdom::Node;
-use readability::markup5ever_arcdom::NodeData::Element;
+use readability::markup5ever_rcdom::Node;
+use readability::markup5ever_rcdom::NodeData::Element;
 use regex::Regex;
 use std::collections::VecDeque;
 use std::env;
 use std::io::BufReader;
 
+use std::rc::Rc;
 use std::sync::Arc;
 use std::{collections::HashMap, net::SocketAddr};
 // use unicode_segmentation::UnicodeSegmentation;
@@ -265,7 +266,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 }
 
-fn get_next_link(node: Arc<Node>, re: &Regex) -> String {
+fn get_next_link(node: Rc<Node>, re: &Regex) -> String {
     let mut queue = VecDeque::new();
     queue.push_back(node);
 
