@@ -2,9 +2,9 @@ use std::io::{self, Read};
 
 use anyhow::{Context, Result};
 use brotli::CompressorReader;
-use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
+use encoding_rs::*;
 use futures_util::{SinkExt, StreamExt};
-use log::info;
+use log::{debug, info};
 use time::{format_description, OffsetDateTime};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -19,28 +19,65 @@ const ENDPOINT2: &str =
 const PAYLOAD_2: &str = r#"{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}"#;
 
 // Compress the given body using Brotli
-pub fn compress_body(/*new_headers: &mut HeaderMap, */ body: &[u8]) -> Result<Vec<u8>> {
-    // Create a Brotli encoder with default initialization parameters
-    let mut compressor = CompressorReader::new(body, 4096, 11, 22);
-    let mut compressed = Vec::new();
-    // Compress the content
-    compressor.read_to_end(&mut compressed)?;
-    Ok(compressed)
+pub fn compress_body(body: &[u8], compression_type: &mut String) -> Result<Vec<u8>> {
+    let mut smallest_compressed = Vec::new();
+    let c = compression_type.clone();
+    let mut compressions = c.split(',').collect::<Vec<&str>>(); // Clone here
+    if !compressions.contains(&"br") {
+        compressions.push("br");
+    }
+    for compression in compressions {
+        debug!("compress with: {}", compression);
+        let mut compressed = Vec::new();
+        match compression.trim().to_lowercase().as_str() {
+            "br" => {
+                CompressorReader::new(body, 4096, 11, 22).read_to_end(&mut compressed)?;
+            }
+            "zstd" => {
+                compressed = zstd::bulk::compress(body, 22)?;
+            }
+            "gzip" => {
+                use flate2::write::GzEncoder;
+                use flate2::Compression;
+                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                io::Write::write_all(&mut encoder, body)?;
+                compressed = encoder.finish()?;
+            }
+            "deflate" => {
+                use flate2::write::DeflateEncoder;
+                use flate2::Compression;
+                let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+                io::Write::write_all(&mut encoder, body)?;
+                compressed = encoder.finish()?;
+            }
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "Unsupported compression type: {}",
+                    compression
+                ))
+            }
+        };
+        debug!("compressed len: {}", compressed.len());
+        if smallest_compressed.is_empty() || compressed.len() < smallest_compressed.len() {
+            smallest_compressed = compressed;
+            *compression_type = compression.trim().to_lowercase();
+        }
+    }
+    Ok(smallest_compressed)
 }
 
 // Convert the given bytes to UTF-8 using the specified character set
 pub fn to_utf8(orig: &[u8], charset: &str) -> Result<String> {
-    let e1 = encoding_from_whatwg_label(charset).context("encoding error")?;
-    let s = e1.decode(orig, DecoderTrap::Strict).map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("decode error: {charset}"),
-        )
-    })?;
-    Ok(s)
+    let encoding = Encoding::for_label(charset.as_bytes())
+        .context(format!("error get encoding:{}", charset))?;
+    let (cow, _, had_errors) = encoding.decode(orig);
+    if had_errors {
+        return Err(anyhow::anyhow!("error decoding"));
+    }
+    Ok(cow.into_owned())
 }
 
-// Send a request to the speech service and return the resulting MP3 audio data
+// 向语音服务发送请求并返回生成的MP3音频数据
 pub async fn get_mp3(ssml: &str) -> Result<Vec<u8>> {
     // Define the timestamp format for the X-Timestamp header
     let dt_fmt = format_description::parse(DATE_FORMAT_STR)?;
@@ -59,7 +96,7 @@ pub async fn get_mp3(ssml: &str) -> Result<Vec<u8>> {
         "Origin",
         HeaderValue::from_static("chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold"),
     );
-    req.headers_mut().append(USER_AGENT, HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"));
+    req.headers_mut().append(USER_AGENT, HeaderValue::from_static("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"));
 
     // Send the WebSocket request and split the resulting stream into a writer and a reader
     let (ws, _) = connect_async(req).await.expect("ws connect error");
@@ -164,7 +201,10 @@ mod tests {
     #[test]
     fn test_compress_body() {
         let body_bytes = b"Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!".to_vec();
-        let result = compress_body(&body_bytes).unwrap();
+        let mut compression_type = "gzip, deflate, br, zstd".to_string();
+        let result = compress_body(&body_bytes, &mut compression_type).unwrap();
+        println!("compression_type: {}", compression_type);
+        assert_eq!(compression_type, "br");
         assert!(result.len() < body_bytes.len());
     }
 }

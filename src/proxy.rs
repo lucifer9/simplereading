@@ -15,6 +15,7 @@ use crate::{utils, AppContext};
 
 async fn modify_response(
     context: Arc<AppContext>,
+    req_headers: &HeaderMap,
     // forward_uri: &str,
     resp: Response<Full<Bytes>>,
 ) -> Result<Response<Full<Bytes>>> {
@@ -22,7 +23,12 @@ async fn modify_response(
     info!("modify response");
     debug!("status: {}", resp.status());
     let new_headers = res.headers_mut().context("failed to get headers")?;
+    let accept_encoding = req_headers
+        .get(hyper::header::ACCEPT_ENCODING)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
     let mut need_compress = true;
+    let mut compression_type = accept_encoding.to_string();
     for (key, value) in resp.headers().iter() {
         let mut text = value.to_str()?.to_string();
         if key == hyper::header::SET_COOKIE {
@@ -118,13 +124,13 @@ async fn modify_response(
         }
     }
     if need_compress {
-        body_bytes = utils::compress_body(&body_bytes)?;
+        body_bytes = utils::compress_body(&body_bytes, &mut compression_type)?;
 
         new_headers.remove(hyper::header::CONTENT_ENCODING);
         new_headers.remove(hyper::header::CONTENT_LENGTH);
         new_headers.insert(
             hyper::header::CONTENT_ENCODING,
-            HeaderValue::from_static("br"),
+            HeaderValue::from_str(&compression_type)?,
         );
         debug!("compress body");
         new_headers.insert(
@@ -219,6 +225,12 @@ async fn create_proxied_response(
             let _ = decoder.read_to_end(&mut buf);
             buf
         }
+        "zstd" => {
+            let mut decoder = zstd::Decoder::new(&body_bytes[..])?;
+            let mut buf = Vec::new();
+            let _ = decoder.read_to_end(&mut buf);
+            buf
+        }
         _ => body_bytes.to_vec(),
     };
 
@@ -272,9 +284,10 @@ fn create_proxied_request(
 
     let host_val = request.uri().host().unwrap().to_string();
     request.headers_mut().remove(hyper::header::ACCEPT_ENCODING);
+
     request.headers_mut().insert(
         hyper::header::ACCEPT_ENCODING,
-        HeaderValue::from_static("gzip, deflate, br"),
+        HeaderValue::from_static("gzip, deflate, br, zstd"),
     );
     request
         .headers_mut()
@@ -291,11 +304,12 @@ pub async fn call(
     forward_uri: &str,
     request: Request<Incoming>,
 ) -> Result<Response<Full<Bytes>>> {
+    let req_headers = request.headers().clone();
     let proxied_request = create_proxied_request(context.clone(), forward_uri, request)?;
     let https = hyper_tls::HttpsConnector::new();
     // let client: Client<_, Body> = Client::builder().build(https);
     let client = Client::builder(TokioExecutor::new()).build(https);
     let response = client.request(proxied_request).await?;
     let proxied_response = create_proxied_response(response).await?;
-    modify_response(context.clone(), proxied_response).await
+    modify_response(context.clone(), &req_headers, proxied_response).await
 }

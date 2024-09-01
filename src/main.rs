@@ -122,11 +122,17 @@ async fn handle(
                 "#;
             html.push_str(script);
             debug!("html: {}", &html);
-            let new_body = utils::compress_body(&html.into_bytes())?;
+            let mut encoding = req
+                .headers()
+                .get(hyper::header::ACCEPT_ENCODING)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            let new_body = utils::compress_body(&html.into_bytes(), &mut encoding)?;
             let new_resp = Response::builder()
                 .status(hyper::http::StatusCode::OK)
                 .header(hyper::header::CONTENT_TYPE, "text/html")
-                .header(hyper::header::CONTENT_ENCODING, "br")
+                .header(hyper::header::CONTENT_ENCODING, &encoding)
                 .header(hyper::header::CONTENT_LENGTH, new_body.len().to_string())
                 .body(Full::from(new_body))?;
             return Ok(new_resp);
@@ -235,7 +241,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let context = AppContext {
         booksite: "https://m.booklink.me".to_string(),
         fontsize: env::var("FONTSIZE").unwrap_or_else(|_| "17".to_string()),
-        ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1".to_string(),
+        ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36".to_string(),
         host: env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
         port: if dev {
             localport.clone()
@@ -353,7 +359,7 @@ fn get_content(content: &[u8], url: &Url, re: &Regex) -> Result<Product> {
 async fn fetch_novel(url: &str) -> Result<Vec<u8>> {
     let output = tokio::process::Command::new("curl").arg("-gsL")
         .arg("--compressed")
-        .arg("-A 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Mobile/15E148 Safari/604.1'")
+        .arg("-A 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'")
         .arg(url).output().await?;
     let html = output.stdout;
 
