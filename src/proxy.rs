@@ -67,8 +67,8 @@ async fn modify_response(
                     "<body><style>ul.list.sec {display: none;}</style>",
                 );
             }
-            // body_string =
-            //     body_string.replace("www.google.com/search?ie=utf-8&", "duckduckgo.com/?ia=qa&");
+            body_string =
+                body_string.replace("www.google.com/search?ie=utf-8&", "kagi.com/search?");
             let script = r#"
                 <script type="text/javascript">
                 function chg(e) {

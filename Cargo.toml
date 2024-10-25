@@ -1,6 +1,6 @@
 [package]
 name = "simplereading"
-version = "0.10.0"
+version = "0.10.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -19,7 +19,7 @@ url = "2"
 flate2 = "1"
 lazy_static = "1"
 unicase = "2.7"
-html5ever = "0.28"
+html5ever = "0.29"
 regex = "1"
 log = "0.4"
 #readability = { path = "../readability", default-features = false }
@@ -31,6 +31,6 @@ tokio-tungstenite = { version = "*", features = ["native-tls"] }
 futures-util = "0.3"
 #unicode-segmentation = "1.9"
 time = { version = "0.3", features = ["formatting"] }
-brotli = "6"
+brotli = "7"
 zstd = "0.13"
 env_logger = "0.11"
