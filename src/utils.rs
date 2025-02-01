@@ -1,3 +1,4 @@
+use std::env;
 use std::io::{self, Read};
 
 use anyhow::{Context, Result};
@@ -20,49 +21,64 @@ const PAYLOAD_2: &str = r#"{"context":{"synthesis":{"audio":{"metadataoptions":{
 
 // Compress the given body using Brotli
 pub fn compress_body(body: &[u8], compression_type: &mut String) -> Result<Vec<u8>> {
-    let mut smallest_compressed = Vec::new();
-    let c = compression_type.clone();
-    let mut compressions = c.split(',').collect::<Vec<&str>>(); // Clone here
-    if !compressions.contains(&"br") {
-        compressions.push("br");
-    }
-    for compression in compressions {
-        debug!("compress with: {}", compression);
-        let mut compressed = Vec::new();
-        match compression.trim().to_lowercase().as_str() {
+    // Pre-allocate with capacity based on input size
+    let mut smallest_compressed = Vec::with_capacity(body.len());
+    let compressions = if compression_type.is_empty() {
+        vec!["br"]
+    } else {
+        let mut types: Vec<&str> = compression_type.split(',')
+            .map(str::trim)
+            .collect();
+        if !types.contains(&"br") {
+            types.push("br");
+        }
+        types
+    };
+
+    for &compression in &compressions {
+        let compressed = match compression {
             "br" => {
-                CompressorReader::new(body, 4096, 11, 22).read_to_end(&mut compressed)?;
+                let mut output = Vec::with_capacity(body.len());
+                // Optimize Brotli parameters: window size 22 (max), quality 4 (fast)
+                CompressorReader::new(body, body.len(), 4, 22)
+                    .read_to_end(&mut output)?;
+                output
             }
             "zstd" => {
-                compressed = zstd::bulk::compress(body, 22)?;
+                // Use a lower compression level (7) for better speed/compression ratio balance
+                zstd::bulk::compress(body, 7)?
             }
             "gzip" => {
                 use flate2::write::GzEncoder;
                 use flate2::Compression;
-                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                let mut encoder = GzEncoder::new(
+                    Vec::with_capacity(body.len()),
+                    Compression::fast()
+                );
                 io::Write::write_all(&mut encoder, body)?;
-                compressed = encoder.finish()?;
+                encoder.finish()?
             }
             "deflate" => {
                 use flate2::write::DeflateEncoder;
                 use flate2::Compression;
-                let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+                let mut encoder = DeflateEncoder::new(
+                    Vec::with_capacity(body.len()),
+                    Compression::fast()
+                );
                 io::Write::write_all(&mut encoder, body)?;
-                compressed = encoder.finish()?;
+                encoder.finish()?
             }
-            _ => {
-                return Err(anyhow::anyhow!(
-                    "Unsupported compression type: {}",
-                    compression
-                ))
-            }
+            _ => return Err(anyhow::anyhow!("Unsupported compression type: {}", compression))
         };
+
         debug!("compressed len: {}", compressed.len());
         if smallest_compressed.is_empty() || compressed.len() < smallest_compressed.len() {
             smallest_compressed = compressed;
-            *compression_type = compression.trim().to_lowercase();
+            compression_type.clear();
+            compression_type.push_str(compression);
         }
     }
+    
     Ok(smallest_compressed)
 }
 
@@ -200,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_compress_body() {
-        let body_bytes = b"Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!".to_vec();
+        let body_bytes = b"Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!Hello, world!".to_vec();
         let mut compression_type = "gzip, deflate, br, zstd".to_string();
         let result = compress_body(&body_bytes, &mut compression_type).unwrap();
         println!("compression_type: {}", compression_type);
