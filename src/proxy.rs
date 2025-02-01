@@ -184,20 +184,6 @@ async fn create_proxied_response(
     let (mut parts, body) = response.into_parts();
     let body_bytes = body.collect().await?.to_bytes().to_vec();
     let headers = parts.headers.clone();
-    // let decoder = match headers.get(hyper::header::CONTENT_ENCODING) {
-    //     Some(value) => {
-    //         parts.headers.remove(hyper::header::CONTENT_ENCODING);
-    //         value.to_str()?
-    //     }
-    //     None => "",
-    // };
-    // let decoder = if let Some(value) = headers.get(hyper::header::CONTENT_ENCODING) {
-    //     parts.headers.remove(hyper::header::CONTENT_ENCODING);
-    //     value.to_str()?
-    // } else {
-    //     ""
-    // };
-    // Determine the content encoding and decode the response body if necessary
     let decoder = headers
         .get(hyper::header::CONTENT_ENCODING)
         .and_then(|value| {
@@ -259,10 +245,6 @@ async fn create_proxied_response(
 
 fn forward_uri(forward_url: &str, req: &Request<Incoming>) -> Result<Uri> {
     if !forward_url.is_empty() {
-        // let new_uri = match req.uri().query() {
-        //     Some(query) => format!("{}{}?{}", forward_url, req.uri().path(), query),
-        //     None => format!("{}{}", forward_url, req.uri().path()),
-        // };
         let new_uri = if let Some(query) = req.uri().query() {
             format!("{}{}?{}", forward_url, req.uri().path(), query)
         } else {
@@ -307,7 +289,6 @@ pub async fn call(
     let req_headers = request.headers().clone();
     let proxied_request = create_proxied_request(context.clone(), forward_uri, request)?;
     let https = hyper_tls::HttpsConnector::new();
-    // let client: Client<_, Body> = Client::builder().build(https);
     let client = Client::builder(TokioExecutor::new()).build(https);
     let response = client.request(proxied_request).await?;
     let proxied_response = create_proxied_response(response).await?;

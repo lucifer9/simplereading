@@ -1,6 +1,6 @@
 [package]
 name = "simplereading"
-version = "0.10.1"
+version = "0.11.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -8,7 +8,6 @@ edition = "2021"
 hyper = { version = "1", features = ["server", "client", "http1", "http2"] }
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["full"] }
-hyper-tls = "0.6"
 tokio = { version = "1", features = [
   "rt-multi-thread",
   "net",
@@ -18,19 +17,23 @@ tokio = { version = "1", features = [
 url = "2"
 flate2 = "1"
 lazy_static = "1"
-unicase = "2.7"
-html5ever = "0.29"
 regex = "1"
 log = "0.4"
-readability = { path = "../readability", default-features = false }
-#readability = { git = "https://github.com/lucifer9/readability", default-features = false }
+#readability = { path = "../readability", default-features = false }
+readability = { git = "https://github.com/lucifer9/readability", default-features = false }
 encoding_rs = "0.8"
 anyhow = "1.0"
 uuid = { version = "1", features = ["v4", "fast-rng"] }
-tokio-tungstenite = { version = "*", features = ["native-tls"] }
+tokio-tungstenite = { version = "*", features = ["native-tls", "connect"] }
 futures-util = "0.3"
 #unicode-segmentation = "1.9"
 time = { version = "0.3", features = ["formatting"] }
 brotli = "7"
 zstd = "0.13"
 env_logger = "0.11"
+native-tls = "0.2"
+tokio-socks = "0.5"
+tokio-native-tls = "0.3"
+hyper-tls = "0.6"
+unicase = "2.7"
+html5ever = "0.29"
