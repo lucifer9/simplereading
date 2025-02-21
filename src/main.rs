@@ -226,10 +226,12 @@ async fn get_all_txt(dest: String) -> Result<Product> {
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let dev = env::var("DEV").is_ok();
     if dev {
-        env::set_var("RUST_LOG", "debug");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("RUST_LOG", "debug") };
     }
     if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "info");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("RUST_LOG", "info") };
     }
     env_logger::init();
     let localport = env::var("LOCAL_PORT").unwrap_or_else(|_| "9005".to_string());

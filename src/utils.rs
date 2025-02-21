@@ -155,14 +155,14 @@ pub async fn get_mp3(ssml: &str) -> Result<Vec<u8>> {
     );
 
     // Get TCP stream (either direct or through proxy)
-    let tcp_stream = if let Some(proxy_stream) = get_proxy_stream(&url).await {
+    let tcp_stream = match get_proxy_stream(&url).await { Some(proxy_stream) => {
         proxy_stream
-    } else {
+    } _ => {
         let target = url.parse::<Url>()?;
         let host = target.host_str().context("No host in URL")?;
         let port = target.port().unwrap_or(443);
         TcpStream::connect((host, port)).await?
-    };
+    }};
 
     // Configure TLS
     let mut builder = TlsConnector::builder();
