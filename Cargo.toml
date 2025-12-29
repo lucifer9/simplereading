@@ -16,7 +16,7 @@ tokio = { version = "1", features = [
 ] }
 url = "2"
 flate2 = "1"
-lazy_static = "1"
+
 regex = "1"
 log = "0.4"
 #readability = { path = "../readability", default-features = false }
@@ -24,16 +24,23 @@ readability = { git = "https://github.com/lucifer9/readability", default-feature
 encoding_rs = "0.8"
 anyhow = "1.0"
 uuid = { version = "1", features = ["v4", "fast-rng"] }
-tokio-tungstenite = { version = "*", features = ["native-tls", "connect"] }
+tokio-tungstenite = { version = "*", features = [
+  "rustls-tls-webpki-roots",
+  "connect",
+] }
 futures-util = "0.3"
-#unicode-segmentation = "1.9"
 time = { version = "0.3", features = ["formatting"] }
-brotli = "7"
+brotli = "8"
 zstd = "0.13"
 env_logger = "0.11"
-native-tls = "0.2"
 tokio-socks = "0.5"
-tokio-native-tls = "0.3"
-hyper-tls = "0.6"
+tokio-rustls = "0.26"
+rustls = "0.23"
+webpki-roots = "1"
+hyper-rustls = { version = "0.27", features = [
+  "http1",
+  "http2",
+  "webpki-roots",
+] }
 unicase = "2.7"
-html5ever = "0.29"
+html5ever = "0.36"

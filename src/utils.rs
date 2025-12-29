@@ -1,15 +1,16 @@
 use std::env;
 use std::io::{self, Read};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use brotli::CompressorReader;
 use encoding_rs::*;
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, info};
-use native_tls::TlsConnector;
+use rustls::ClientConfig;
 use time::{format_description, OffsetDateTime};
 use tokio::net::TcpStream;
-use tokio_native_tls::TlsConnector as TokioTlsConnector;
+use tokio_rustls::TlsConnector;
 use tokio_socks::tcp::Socks5Stream;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::header::USER_AGENT;
@@ -151,7 +152,7 @@ pub async fn get_mp3(ssml: &str) -> Result<Vec<u8>> {
     );
     req.headers_mut().append(
         USER_AGENT,
-        HeaderValue::from_static("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"),
+        HeaderValue::from_static("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"),
     );
 
     // Get TCP stream (either direct or through proxy)
@@ -164,13 +165,12 @@ pub async fn get_mp3(ssml: &str) -> Result<Vec<u8>> {
         TcpStream::connect((host, port)).await?
     }};
 
-    // Configure TLS
-    let mut builder = TlsConnector::builder();
-    builder.min_protocol_version(Some(native_tls::Protocol::Tlsv12));
-    builder.use_sni(true);
-
-    // Establish TLS connection
-    let connector = builder.build()?;
+    // Configure TLS with rustls
+    let root_store = rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let config = ClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+    let connector = TlsConnector::from(Arc::new(config));
 
     // Establish TLS connection
     let domain = url
@@ -178,14 +178,16 @@ pub async fn get_mp3(ssml: &str) -> Result<Vec<u8>> {
         .host_str()
         .context("No host in URL")?
         .to_string();
+    let server_name = rustls::pki_types::ServerName::try_from(domain.clone())
+        .map_err(|e| anyhow::anyhow!("Invalid DNS name: {}", e))?;
 
-    let tls_stream = TokioTlsConnector::from(connector)
-        .connect(&domain, tcp_stream)
+    let tls_stream = connector
+        .connect(server_name, tcp_stream)
         .await
         .map_err(|e| anyhow::anyhow!("TLS connection failed: {}", e))?;
 
-    // Create WebSocket connection
-    let (ws, _) = tokio_tungstenite::client_async_tls(req, tls_stream)
+    // Create WebSocket connection (use client_async since TLS is already established)
+    let (ws, _) = tokio_tungstenite::client_async(req, tls_stream)
         .await
         .map_err(|e| anyhow::anyhow!("WebSocket connection failed: {}", e))?;
 

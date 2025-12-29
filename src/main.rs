@@ -15,7 +15,6 @@ use std::io::BufReader;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::{collections::HashMap, net::SocketAddr};
-// use unicode_segmentation::UnicodeSegmentation;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use tokio::net::TcpListener;
@@ -55,72 +54,55 @@ async fn handle(
                 .status(hyper::http::StatusCode::FOUND)
                 .header(hyper::header::LOCATION, dest)
                 .body(Full::new(Bytes::new()))?;
-            // let r = Response::new(Full::new(Bytes::new()));
-            // r.headers_mut()
-            //     .insert(hyper::header::LOCATION, dest.parse()?);
-            // *r.status_mut() = hyper::http::StatusCode::FOUND;
             return Ok(r);
         } else {
             let p0 = get_all_txt(dest).await?;
-            //toWrite := `<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>` +title + `</title></head><body><h3>` + title + `</h3><style> p{text-indent:2em; font-size:` + strconv.Itoa(FONTSIZE) +";}</style>\n" + content + `</body></html>`
-            let mut html = String::from(
-                r#"<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>"#,
+            let html = format!(
+                r#"<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>{title}</title></head><body><h3>{title}</h3><style> p{{text-indent:2em; font-size:{fontsize}px;}}</style><div id="div1" style="text-align:center"><audio id="au"><source src = "data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"></audio><button id="listen" type="button" onclick="listen()">Listen</button></div>{content}
+<script type="text/javascript">
+function chg(e) {{
+    if (e === "dark") {{
+        document.body.style.color = "white";
+        document.body.style.backgroundColor = "black";
+    }} else {{
+        document.body.style.color = "black";
+        document.body.style.backgroundColor = "white";
+    }}
+}}
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {{
+    chg("dark");
+}} else {{
+    chg("bright");
+}}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {{
+    const newColorScheme = event.matches ? "dark" : "light";
+    chg(newColorScheme);
+}});
+function listen() {{
+    let full = window.location.href;
+    let dest = full.replace("dest=", "listen=");
+    let btn = document.getElementById("listen");
+    let div = document.getElementById("div1");
+    let au = document.getElementById("au");
+    au.autoplay = true;
+    try {{
+        au.src=dest;
+        au.addEventListener("canplaythrough", (event) => {{
+            au.play();
+        }});
+        au.controls = true;
+        div.insertBefore(au, btn);
+        btn.style.display = "none";
+    }} catch (e) {{
+        alert(e.stack);
+    }}
+}}
+</script>
+</body></html>"#,
+                title = p0.title,
+                fontsize = context.fontsize,
+                content = p0.text
             );
-            html.push_str(&p0.title);
-            html.push_str(r#"</title></head><body><h3>"#);
-            html.push_str(&p0.title);
-            html.push_str(r#"</h3><style> p{text-indent:2em; font-size:"#);
-            html.push_str(context.fontsize.to_string().as_str());
-            html.push_str(r#"px;}</style>"#);
-
-            html.push_str(
-                    r#"<div id="div1" style="text-align:center"><audio id="au"><source src = "data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"></audio><button id="listen" type="button" onclick="listen()">Listen</button></div>"#
-                );
-            html.push_str(&p0.text);
-            let script = r#"
-                <script type="text/javascript">
-                function chg(e) {
-                    if (e === "dark") {
-                        document.body.style.color = "white";
-                        document.body.style.backgroundColor = "black";
-                    } else {
-                        document.body.style.color = "black";
-                        document.body.style.backgroundColor = "white";
-                    }
-                }
-                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                    chg("dark");
-                } else {
-                    chg("bright");
-                }
-                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
-                    const newColorScheme = event.matches ? "dark" : "light";
-                    chg(newColorScheme);
-                });
-                function listen() {
-                    let full = window.location.href;
-                    let dest = full.replace("dest=", "listen=");
-                    let btn = document.getElementById("listen");
-                    let div = document.getElementById("div1");
-                    let au = document.getElementById("au");
-                    au.autoplay = true;
-                    try {
-                        au.src=dest;
-                        au.addEventListener("canplaythrough", (event) => {
-                            /* the audio is now playable; play it if permissions allow */
-                            au.play();
-                          });
-                        au.controls = true;
-                        div.insertBefore(au, btn);
-                        btn.style.display = "none";
-                    } catch (e) {
-                      alert(e.stack);
-                }
-            }
-            </script>
-                </body></html>
-                "#;
-            html.push_str(script);
             debug!("html: {}", &html);
             let mut encoding = req
                 .headers()
@@ -139,21 +121,12 @@ async fn handle(
         }
     } else if let Some(listen) = params.get("listen").cloned() {
         let mut all = get_all_txt(listen).await?.text;
-        // all = all.replace("<p>", "");
         all = all.replace("</p>", "");
-        // let lines = all.lines().collect::<Vec<&str>>();
-        // let total_str = lines.filter(|&x| !x.is_empty()).collect::<Vec<&str>>();
-        // let size = 2500;
-        // let n = lines.len() / size + 1;
-        // let all_chars = all.as_str().graphemes(true).collect::<Vec<&str>>();
-        // dbg!(all_chars.len());
-        // let chunks = all.len() / size + 1;
         let lines = all.split("<p>").collect::<Vec<&str>>();
         let n = 10;
         let start = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN"> <voice name="zh-CN-XiaoxiaoNeural"> <prosody rate="+50.00%">"#;
         let end = r#"</prosody> </voice> </speak>"#;
         let mut mp3 = Vec::new();
-        // for chunk in all_chars.chunks(size) {
         let size = lines.len() / n;
         debug!("size={size}");
         let mut handles = Vec::new();
@@ -167,19 +140,9 @@ async fn handle(
             ssml.push_str(&s);
             ssml.push_str(end);
             debug!("ssml: {}", &ssml);
-            // let t = utils::get_token().await?;
             let handle = task::spawn(async move { utils::get_mp3(&ssml).await });
             handles.push(handle);
-            // mp3[i].extend_from_slice(&utils::get_mp3(&ssml).await?);
         }
-        // let mut ssml = String::from(start);
-        // ssml.push_str(&chunk.join(""));
-        // ssml.push_str(&all);
-        // ssml.push_str(end);
-        // debug!("ssml: {}", &ssml);
-        // let t = utils::get_token().await?;
-        // mp3.extend_from_slice(&utils::get_mp3(&ssml).await?);
-        // }
         for handle in handles {
             if let Ok(result) = handle.await {
                 mp3.extend_from_slice(&result?);
@@ -195,15 +158,17 @@ async fn handle(
 
 async fn get_all_txt(dest: String) -> Result<Product> {
     let base = Url::parse(&dest)?;
-    let mut re: Regex = Regex::new(r"xxx")?;
-    if dest.contains('/') && dest.contains('.') {
-        let first = dest.rfind('/').unwrap() + 1;
-        let last = dest.rfind('.').unwrap();
-        if first < last {
-            let base = &dest[first..last];
-            re = Regex::new(format!("{base}[_-]\\d+").as_str())?;
+    let re = if let (Some(first_idx), Some(last_idx)) = (dest.rfind('/'), dest.rfind('.')) {
+        let first = first_idx + 1;
+        if first < last_idx {
+            let base_name = &dest[first..last_idx];
+            Regex::new(&format!("{base_name}[_-]\\d+"))?
+        } else {
+            Regex::new(r"^$")? // Never matches
         }
-    }
+    } else {
+        Regex::new(r"^$")? // Never matches
+    };
     let body = fetch_novel(&dest).await?;
     let mut p0 = get_content(&body[..], &Url::parse(&dest)?, &re)?;
     let mut next = p0.content.clone();
@@ -225,15 +190,12 @@ async fn get_all_txt(dest: String) -> Result<Product> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let dev = env::var("DEV").is_ok();
-    if dev {
-        // TODO: Audit that the environment access only happens in single-threaded code.
-        unsafe { env::set_var("RUST_LOG", "debug") };
-    }
-    if env::var("RUST_LOG").is_err() {
-        // TODO: Audit that the environment access only happens in single-threaded code.
-        unsafe { env::set_var("RUST_LOG", "info") };
-    }
-    env_logger::init();
+    let log_level = if dev {
+        "debug".to_string()
+    } else {
+        env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string())
+    };
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(&log_level)).init();
     let localport = env::var("LOCAL_PORT").unwrap_or_else(|_| "9005".to_string());
     let listenlocal = env::var("LISTEN_LOCAL").is_ok();
     let listenaddr = match listenlocal {
@@ -243,7 +205,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let context = AppContext {
         booksite: "https://m.booklink.me".to_string(),
         fontsize: env::var("FONTSIZE").unwrap_or_else(|_| "17".to_string()),
-        ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36".to_string(),
+        ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36".to_string(),
         host: env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
         port: if dev {
             localport.clone()
@@ -311,42 +273,6 @@ fn get_next_link(node: Rc<Node>, re: &Regex) -> String {
     "".to_string()
 }
 
-// fn get_next_link(node: Arc<Node>, re: &Regex) -> String {
-//     let handle = node;
-//     for child in handle.children.borrow().iter() {
-//         let c = child.clone();
-//         if let Element {
-//             ref name,
-//             ref attrs,
-//             ..
-//         } = c.data
-//         {
-//             if name.local.as_ref() == "a" {
-//                 for h in attrs.borrow().iter() {
-//                     if h.name.local.as_ref() == "href" {
-//                         let url = h.value.to_string().to_owned();
-//                         if url.len() >= 4 && url.contains('/') && url.contains('.') {
-//                             let first = url.rfind('/').unwrap() + 1;
-//                             let last = url.rfind('.').unwrap();
-//                             if first < last {
-//                                 let dest = &url[first..last];
-//                                 if re.is_match(dest) {
-//                                     return url;
-//                                 }
-//                             }
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//         let next = get_next_link(c, re);
-//         if !next.is_empty() {
-//             return next;
-//         }
-//     }
-//     "".to_string()
-// }
-
 fn get_content(content: &[u8], url: &Url, re: &Regex) -> Result<Product> {
     let mut bf = BufReader::new(content);
     let dom = get_dom(&mut bf)?;
@@ -359,17 +285,85 @@ fn get_content(content: &[u8], url: &Url, re: &Regex) -> Result<Product> {
 }
 
 async fn fetch_novel(url: &str) -> Result<Vec<u8>> {
-    let output = tokio::process::Command::new("curl").arg("-gsL")
-        .arg("--compressed")
-        .arg("-A 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'")
-        .arg(url).output().await?;
-    let html = output.stdout;
+    use http_body_util::BodyExt;
+    use hyper_util::{client::legacy::Client, rt::TokioExecutor};
+    use std::io::Read;
 
-    let r = if let Ok(r) = String::from_utf8(html.clone()) {
-        r
-    } else {
-        utils::to_utf8(&html, "gb18030")?
-    };
+    let https = hyper_rustls::HttpsConnectorBuilder::new()
+        .with_webpki_roots()
+        .https_or_http()
+        .enable_http1()
+        .enable_http2()
+        .build();
+    let client = Client::builder(TokioExecutor::new()).build(https);
 
-    Ok(r.as_bytes().to_vec())
+    let mut current_url = url.to_string();
+    let max_redirects = 10;
+
+    for _ in 0..max_redirects {
+        let req = hyper::Request::builder()
+            .method("GET")
+            .uri(&current_url)
+            .header(hyper::header::USER_AGENT, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36")
+            .header(hyper::header::ACCEPT_ENCODING, "gzip, deflate, br")
+            .body(http_body_util::Empty::<Bytes>::new())?;
+
+        let resp: hyper::Response<hyper::body::Incoming> = client.request(req).await?;
+        let status = resp.status();
+
+        if status.is_redirection() {
+            if let Some(location) = resp.headers().get(hyper::header::LOCATION) {
+                let location_str = location.to_str()?;
+                current_url = if location_str.starts_with("http") {
+                    location_str.to_string()
+                } else {
+                    let base = Url::parse(&current_url)?;
+                    base.join(location_str)?.to_string()
+                };
+                debug!("Redirecting to: {}", current_url);
+                continue;
+            }
+        }
+
+        let encoding = resp
+            .headers()
+            .get(hyper::header::CONTENT_ENCODING)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+
+        let body_bytes = resp.collect().await?.to_bytes().to_vec();
+
+        let html = match encoding.as_str() {
+            "gzip" => {
+                let mut decoder = flate2::read::GzDecoder::new(&body_bytes[..]);
+                let mut buf = Vec::new();
+                decoder.read_to_end(&mut buf)?;
+                buf
+            }
+            "deflate" => {
+                let mut decoder = flate2::read::DeflateDecoder::new(&body_bytes[..]);
+                let mut buf = Vec::new();
+                decoder.read_to_end(&mut buf)?;
+                buf
+            }
+            "br" => {
+                let mut decoder = brotli::Decompressor::new(&body_bytes[..], body_bytes.len());
+                let mut buf = Vec::new();
+                decoder.read_to_end(&mut buf)?;
+                buf
+            }
+            _ => body_bytes,
+        };
+
+        let r = if let Ok(r) = String::from_utf8(html.clone()) {
+            r
+        } else {
+            utils::to_utf8(&html, "gb18030")?
+        };
+
+        return Ok(r.as_bytes().to_vec());
+    }
+
+    Err(anyhow::anyhow!("Too many redirects"))
 }

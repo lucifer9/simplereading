@@ -8,8 +8,8 @@ use hyper::body::{Bytes, Incoming};
 use hyper::header::{HeaderMap, HeaderValue};
 use hyper::{Request, Response, Uri};
 use hyper_util::{client::legacy::Client, rt::TokioExecutor};
-use lazy_static::lazy_static;
 use log::{debug, info};
+use std::sync::LazyLock;
 
 use crate::{utils, AppContext};
 
@@ -145,11 +145,8 @@ async fn modify_response(
 fn is_hop_header(name: &str) -> bool {
     use unicase::Ascii;
 
-    // A list of the headers, using `unicase` to help us compare without
-    // worrying about the case, and `lazy_static!` to prevent reallocation
-    // of the vector.
-    lazy_static! {
-        static ref HOP_HEADERS: Vec<Ascii<&'static str>> = vec![
+    static HOP_HEADERS: LazyLock<Vec<Ascii<&'static str>>> = LazyLock::new(|| {
+        vec![
             Ascii::new("Connection"),
             Ascii::new("Keep-Alive"),
             Ascii::new("Proxy-Authenticate"),
@@ -158,20 +155,23 @@ fn is_hop_header(name: &str) -> bool {
             Ascii::new("Trailers"),
             Ascii::new("Transfer-Encoding"),
             Ascii::new("Upgrade"),
-        ];
-    }
+        ]
+    });
 
     HOP_HEADERS.iter().any(|h| h == &name)
 }
 
-/// Returns a clone of the headers without the [hop-by-hop headers].
+/// Removes [hop-by-hop headers] from the given headers.
 ///
 /// [hop-by-hop headers]: http://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html
 fn remove_hop_headers(headers: &mut HeaderMap<HeaderValue>) {
-    for (k, _v) in headers.clone().iter() {
-        if is_hop_header(k.as_str()) {
-            headers.remove(k);
-        }
+    let keys_to_remove: Vec<_> = headers
+        .keys()
+        .filter(|k| is_hop_header(k.as_str()))
+        .cloned()
+        .collect();
+    for key in keys_to_remove {
+        headers.remove(&key);
     }
 }
 
@@ -288,7 +288,12 @@ pub async fn call(
 ) -> Result<Response<Full<Bytes>>> {
     let req_headers = request.headers().clone();
     let proxied_request = create_proxied_request(context.clone(), forward_uri, request)?;
-    let https = hyper_tls::HttpsConnector::new();
+    let https = hyper_rustls::HttpsConnectorBuilder::new()
+        .with_webpki_roots()
+        .https_or_http()
+        .enable_http1()
+        .enable_http2()
+        .build();
     let client = Client::builder(TokioExecutor::new()).build(https);
     let response = client.request(proxied_request).await?;
     let proxied_response = create_proxied_response(response).await?;
